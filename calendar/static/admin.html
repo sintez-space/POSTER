@@ -443,7 +443,7 @@
         return;
       }
 
-      for (const g of byUser.values()) {
+      for (const [key, g] of byUser.entries()) {
         g.scheduled.sort((a, b) => (a.scheduled_at || "").localeCompare(b.scheduled_at || ""));
         g.unscheduled.sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
 
