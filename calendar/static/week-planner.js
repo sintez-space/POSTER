@@ -652,8 +652,9 @@ const WeekPlanner = (() => {
 
     function render() {
       mount.innerHTML = "";
+      const isAdmin = me && me.role === "admin";
       const grid = document.createElement("div");
-      grid.className = "week-grid";
+      grid.className = "week-grid" + (isAdmin ? " has-day-footers" : "");
 
       grid.appendChild(document.createElement("div")).className = "week-corner";
 
@@ -769,6 +770,26 @@ const WeekPlanner = (() => {
           grid.appendChild(cell);
         }
       }
+
+      if (isAdmin) {
+        const footCorner = document.createElement("div");
+        footCorner.className = "week-corner-foot";
+        grid.appendChild(footCorner);
+
+        for (let d = 0; d < 5; d++) {
+          const dayDate = addDays(weekMonday, d);
+          const dateIso = isoDate(dayDate);
+          const dayItemsCount = items.filter((it) => (it.scheduled_at || "").slice(0, 10) === dateIso).length;
+          const foot = document.createElement("div");
+          foot.className = "week-day-footer";
+          foot.innerHTML = `
+            <a class="btn day-download-btn ${dayItemsCount ? "has-items" : ""}" href="/api/admin/export-day-zip?date=${dateIso}" download="poster_day_${dateIso}.zip" title="Скачать архив материалов, текстов и расписания на ${dateIso} для POSTER">
+              ⬇ Скачать материалы (${dayItemsCount})
+            </a>`;
+          grid.appendChild(foot);
+        }
+      }
+
       mount.appendChild(grid);
     }
 

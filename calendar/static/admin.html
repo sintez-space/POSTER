@@ -32,6 +32,10 @@
         <span>Авторы</span>
         <span class="tab-sub">карточки авторов</span>
       </button>
+      <button type="button" class="admin-square-tab-btn" id="tabPendingBtn">
+        <span>Заявки</span>
+        <span class="tab-sub" id="pendingBadge">0 новых</span>
+      </button>
     </div>
 
     <!-- 3. Мини-дашборд: 5 крупных инфо-карточек -->
@@ -75,6 +79,8 @@
     <div id="usersTabMount" class="admin-tab-pane" hidden></div>
     <!-- Вкладка 3: Авторы (профили, ники соцсетей, облака тегов и отметок) -->
     <div id="authorsTabMount" class="admin-tab-pane" hidden></div>
+    <!-- Вкладка 4: Заявки на регистрацию -->
+    <div id="pendingTabMount" class="admin-tab-pane" hidden></div>
   </main>
 
   <div class="modal-backdrop" id="modal">
@@ -105,8 +111,8 @@
               <div class="modal-media-box">
                 <span class="preview-label">Видео</span>
                 <div class="modal-media-card" id="videoCardBox">
-                  <video id="modalVideoPreview" controls hidden></video>
-                  <button type="button" class="media-upload-plus" id="pickVideoBtn" title="Загрузить видео (9:16)">+</button>
+                  <video id="modalVideoPreview" controls preload="metadata" playsinline hidden></video>
+                  <button type="button" class="media-upload-plus" id="pickVideoBtn" title="Загрузить видео (до 150 МБ)">+</button>
                 </div>
               </div>
             </div>
@@ -336,24 +342,77 @@
       },
     });
 
-    /* --- Переключение вкладок Админа: Календарь / Юзеры / Авторы --- */
+    /* --- Переключение вкладок Админа: Календарь / Юзеры / Авторы / Заявки --- */
     function setAdminTab(tab) {
       activeAdminTab = tab;
       document.getElementById("tabCalendarBtn").classList.toggle("active", tab === "calendar");
       document.getElementById("tabUsersBtn").classList.toggle("active", tab === "users");
       document.getElementById("tabAuthorsBtn").classList.toggle("active", tab === "authors");
+      document.getElementById("tabPendingBtn").classList.toggle("active", tab === "pending");
 
       document.getElementById("weekMount").hidden = tab !== "calendar";
       document.getElementById("usersTabMount").hidden = tab !== "users";
       document.getElementById("authorsTabMount").hidden = tab !== "authors";
+      document.getElementById("pendingTabMount").hidden = tab !== "pending";
 
       if (tab === "users") renderUsersTab();
       if (tab === "authors") renderAuthorsTab();
+      if (tab === "pending") renderPendingTab();
     }
 
     document.getElementById("tabCalendarBtn").onclick = () => setAdminTab("calendar");
     document.getElementById("tabUsersBtn").onclick = () => setAdminTab("users");
     document.getElementById("tabAuthorsBtn").onclick = () => setAdminTab("authors");
+    document.getElementById("tabPendingBtn").onclick = () => setAdminTab("pending");
+
+    async function renderPendingTab() {
+      const mount = document.getElementById("pendingTabMount");
+      let list = [];
+      try {
+        list = await api("/api/admin/pending-users");
+      } catch (e) {
+        mount.innerHTML = `<p class="error">${e.message}</p>`;
+        return;
+      }
+      document.getElementById("pendingBadge").textContent = `${list.length} новых`;
+      mount.innerHTML = "";
+      if (!list.length) {
+        mount.innerHTML = `<div class="admin-user-group"><p class="text-muted" style="margin:0">Новых заявок на регистрацию нет.</p></div>`;
+        return;
+      }
+      const grid = document.createElement("div");
+      grid.className = "authors-info-grid";
+      for (const u of list) {
+        const p = u.profile || {};
+        const card = document.createElement("div");
+        card.className = "author-info-card";
+        card.innerHTML = `
+          <div class="author-info-top">
+            <div class="author-info-avatar-ph">${(u.display_name || "У").slice(0, 1).toUpperCase()}</div>
+            <div class="author-info-meta">
+              <h3>${u.display_name}</h3>
+              <p>Почта: <strong>${u.email || u.login}</strong></p>
+              <p>Имя: ${p.first_name || "—"} · Фамилия: ${p.last_name || "—"}</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button type="button" class="primary" data-approve="${u.id}" style="flex:1">Подтвердить (Апрув)</button>
+            <button type="button" class="outline" data-reject="${u.id}" style="color:var(--destructive)">Отклонить</button>
+          </div>`;
+        card.querySelector("[data-approve]").onclick = async () => {
+          await api(`/api/admin/users/${u.id}/approve`, { method: "POST" });
+          await updateAdminKpis();
+          await renderPendingTab();
+        };
+        card.querySelector("[data-reject]").onclick = async () => {
+          await api(`/api/admin/users/${u.id}`, { method: "DELETE" });
+          await updateAdminKpis();
+          await renderPendingTab();
+        };
+        grid.appendChild(card);
+      }
+      mount.appendChild(grid);
+    }
 
     function renderUsersTab() {
       const mount = document.getElementById("usersTabMount");
@@ -829,20 +888,25 @@
     }
 
     async function updateAdminKpis() {
+      let pendingList = [];
       try {
-        authorsList = await api("/api/admin/authors");
+        [authorsList, pendingList] = await Promise.all([
+          api("/api/admin/authors"),
+          api("/api/admin/pending-users"),
+        ]);
       } catch (_) {}
-      const totalUsers = authorsList.length || new Set(poolItems.map((x) => x.user_id)).size;
+      const approvedUsers = authorsList.filter((u) => u.is_approved !== false).length || new Set(poolItems.map((x) => x.user_id)).size;
       const videosCnt = poolItems.filter((x) => x.media_kind !== "carousel").length;
       const carouselsCnt = poolItems.filter((x) => x.media_kind === "carousel").length;
       const publishedCnt = poolItems.filter((x) => !!WeekPlanner.slotForItem(x)).length;
       const freeCnt = poolItems.length - publishedCnt;
 
-      document.getElementById("kpiUsers").textContent = String(totalUsers);
+      document.getElementById("kpiUsers").textContent = String(approvedUsers);
       document.getElementById("kpiVideos").textContent = String(videosCnt);
       document.getElementById("kpiCarousels").textContent = String(carouselsCnt);
       document.getElementById("kpiPublished").textContent = String(publishedCnt);
       document.getElementById("kpiFree").textContent = String(freeCnt);
+      document.getElementById("pendingBadge").textContent = `${pendingList.length} новых`;
     }
 
     async function refreshPool() {
@@ -851,6 +915,7 @@
       await updateAdminKpis();
       if (activeAdminTab === "users") renderUsersTab();
       if (activeAdminTab === "authors") await renderAuthorsTab();
+      if (activeAdminTab === "pending") await renderPendingTab();
     }
 
     async function loadAll() {
@@ -969,6 +1034,12 @@
 
     const closeModal = () => {
       draftNewState = null;
+      const vEl = document.getElementById("modalVideoPreview");
+      if (vEl) {
+        vEl.pause();
+        vEl.removeAttribute("src");
+        vEl.load();
+      }
       modal.classList.remove("open");
     };
     document.getElementById("closeBtnTop").onclick = closeModal;

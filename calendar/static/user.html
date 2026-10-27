@@ -74,8 +74,8 @@
                 <div class="modal-media-box">
                   <span class="preview-label">Видео</span>
                   <div class="modal-media-card" id="videoCardBox">
-                    <video id="modalVideoPreview" controls hidden></video>
-                    <button type="button" class="media-upload-plus" id="pickVideoBtn" title="Загрузить видео (9:16)">+</button>
+                    <video id="modalVideoPreview" controls preload="metadata" playsinline hidden></video>
+                    <button type="button" class="media-upload-plus" id="pickVideoBtn" title="Загрузить видео (до 150 МБ)">+</button>
                   </div>
                 </div>
               </div>
@@ -483,6 +483,11 @@
     document.getElementById("subCover").addEventListener("change", (e) => {
       const f = e.target.files && e.target.files[0];
       if (!f) return;
+      if (f.size > 7 * 1024 * 1024) {
+        alert("Размер обложки не должен превышать 7 МБ.");
+        e.target.value = "";
+        return;
+      }
       const coverImg = document.getElementById("modalCoverPreview");
       coverImg.src = URL.createObjectURL(f);
       coverImg.hidden = false;
@@ -492,6 +497,11 @@
     document.getElementById("subVideo").addEventListener("change", (e) => {
       const f = e.target.files && e.target.files[0];
       if (!f) return;
+      if (f.size > 150 * 1024 * 1024) {
+        alert("Размер видео не должен превышать 150 МБ.");
+        e.target.value = "";
+        return;
+      }
       const videoEl = document.getElementById("modalVideoPreview");
       videoEl.src = URL.createObjectURL(f);
       videoEl.hidden = false;
@@ -565,6 +575,13 @@
     document.getElementById("subCarousel").addEventListener("change", (e) => {
       const files = Array.from(e.target.files || []);
       if (!files.length) return;
+      for (const f of files) {
+        if (f.size > 7 * 1024 * 1024) {
+          alert(`Файл «${f.name}» превышает лимит 7 МБ для картинки карусели.`);
+          e.target.value = "";
+          return;
+        }
+      }
       const hasNewBefore = carouselItems.some((x) => x.kind === "new");
       if (!hasNewBefore) {
         carouselItems = [];
@@ -847,15 +864,18 @@
         if (c) fd.append("cover", c);
         newCarFiles.forEach((file) => fd.append("carousel", file, file.name));
         if (v || c || newCarFiles.length) {
-          await apiForm(`/api/submissions/${id}/files`, fd);
+          await apiForm(`/api/submissions/${id}/files`, fd, "POST", (pct) => {
+            saveBtn.textContent = `Загрузка ${pct}%…`;
+          });
         }
 
         monthCountsCache = {};
         await refreshAll();
-        modal.classList.remove("open");
+        closeModal();
       } catch (ex) {
         showError(err, ex);
       } finally {
+        saveBtn.textContent = "Сохранить";
         saveBtn.disabled = false;
       }
     };
@@ -1126,6 +1146,12 @@
 
     const closeModal = () => {
       draftNewState = null;
+      const vEl = document.getElementById("modalVideoPreview");
+      if (vEl) {
+        vEl.pause();
+        vEl.removeAttribute("src");
+        vEl.load();
+      }
       modal.classList.remove("open");
     };
     document.getElementById("closeBtnTop").onclick = closeModal;

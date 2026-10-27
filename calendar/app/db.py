@@ -16,8 +16,10 @@ def _utc_now():
 @contextmanager
 def connect():
     ensure_dirs()
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     try:
         yield conn
         conn.commit()
@@ -38,9 +40,12 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 login TEXT UNIQUE NOT NULL,
+                email TEXT,
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL CHECK(role IN ('admin', 'user')),
                 display_name TEXT NOT NULL,
+                is_approved INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT,
                 profile_json TEXT NOT NULL DEFAULT '{}',
                 avatar_name TEXT
             );
@@ -78,6 +83,9 @@ def init_db():
         )
         _ensure_column(conn, "users", "profile_json", "TEXT NOT NULL DEFAULT '{}'")
         _ensure_column(conn, "users", "avatar_name", "TEXT")
+        _ensure_column(conn, "users", "email", "TEXT")
+        _ensure_column(conn, "users", "is_approved", "INTEGER NOT NULL DEFAULT 1")
+        _ensure_column(conn, "users", "created_at", "TEXT")
         _ensure_column(conn, "submissions", "slot_part", "INTEGER NOT NULL DEFAULT 1")
         _ensure_column(conn, "submissions", "media_kind", "TEXT NOT NULL DEFAULT 'video'")
         _ensure_column(conn, "submissions", "carousel_json", "TEXT NOT NULL DEFAULT '[]'")
@@ -98,19 +106,27 @@ def row_to_user_profile(row) -> dict:
         prof = json.loads(row["profile_json"] or "{}")
     except Exception:
         prof = {}
+    keys = row.keys()
     disp = (row["display_name"] or "").strip()
     parts = disp.split(None, 1) if disp else []
     first_default = parts[0] if parts else ""
     last_default = parts[1] if len(parts) > 1 else ""
+    email_val = (row["email"] if "email" in keys and row["email"] else "") or prof.get("email", "")
+    is_app = int(row["is_approved"]) if "is_approved" in keys and row["is_approved"] is not None else 1
+    created_at = row["created_at"] if "created_at" in keys else None
     return {
         "id": row["id"],
         "login": row["login"],
+        "email": email_val,
         "role": row["role"],
         "display_name": row["display_name"],
+        "is_approved": bool(is_app),
+        "created_at": created_at,
         "avatar_url": f"/api/users/{row['id']}/avatar" if row["avatar_name"] else None,
         "profile": {
             "first_name": prof.get("first_name", first_default),
             "last_name": prof.get("last_name", last_default),
+            "email": email_val,
             "instagram_handle": prof.get("instagram_handle", ""),
             "tiktok_handle": prof.get("tiktok_handle", ""),
             "youtube_handle": prof.get("youtube_handle", ""),

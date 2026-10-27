@@ -11,17 +11,49 @@ async function api(path, opts = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = data.detail;
-    const msg = typeof detail === "string" ? detail : Array.isArray(detail) ? detail.map((x) => x.msg).join("; ") : data.error || res.statusText;
+    const msg =
+      typeof detail === "string"
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((x) => x.msg).join("; ")
+          : data.error || res.statusText;
     throw new Error(msg);
   }
   return data;
 }
 
-async function apiForm(path, formData, method = "POST") {
-  const res = await fetch(path, { method, credentials: "same-origin", body: formData });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data));
-  return data;
+function apiForm(path, formData, method = "POST", onProgress = null) {
+  if (!onProgress) {
+    return fetch(path, { method, credentials: "same-origin", body: formData }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data));
+      return data;
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, path, true);
+    xhr.withCredentials = true;
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable && onProgress) {
+        onProgress(Math.round((ev.loaded / ev.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      let data = {};
+      try {
+        data = JSON.parse(xhr.responseText || "{}");
+      } catch (_) {}
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(data);
+      } else {
+        const msg = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data || xhr.statusText);
+        reject(new Error(msg));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Ошибка сети при загрузке файла"));
+    xhr.send(formData);
+  });
 }
 
 function showError(el, err) {

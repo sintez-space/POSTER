@@ -1,4 +1,5 @@
 import hashlib
+import json
 import secrets
 import uuid
 
@@ -22,17 +23,22 @@ def verify_password(password: str, stored: str) -> bool:
 
 def ensure_demo_users():
     demos = [
-        ("admin", "admin", "admin", "Администратор"),
-        ("author", "author", "user", "Автор"),
+        ("admin", "admin@poster.local", "admin", "admin", "Администратор"),
+        ("author", "author@poster.local", "author", "user", "Автор"),
     ]
+    now = db._utc_now()
     with db.connect() as conn:
-        for login, password, role, name in demos:
-            row = conn.execute("SELECT id FROM users WHERE login = ?", (login,)).fetchone()
+        for login_name, email, password, role, name in demos:
+            row = conn.execute("SELECT id FROM users WHERE login = ?", (login_name,)).fetchone()
             if row:
+                conn.execute("UPDATE users SET is_approved = 1 WHERE id = ?", (row["id"],))
                 continue
             conn.execute(
-                "INSERT INTO users (id, login, password_hash, role, display_name) VALUES (?, ?, ?, ?, ?)",
-                (str(uuid.uuid4()), login, hash_password(password), role, name),
+                """
+                INSERT INTO users (id, login, email, password_hash, role, display_name, is_approved, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+                """,
+                (str(uuid.uuid4()), login_name, email, hash_password(password), role, name, now),
             )
 
 
@@ -52,7 +58,7 @@ def user_by_token(token: str | None):
     with db.connect() as conn:
         row = conn.execute(
             """
-            SELECT u.id, u.login, u.role, u.display_name
+            SELECT u.id, u.login, u.email, u.role, u.display_name, u.is_approved
             FROM sessions s JOIN users u ON u.id = s.user_id
             WHERE s.token = ?
             """,
@@ -60,21 +66,73 @@ def user_by_token(token: str | None):
         ).fetchone()
     if not row:
         return None
+    if row["role"] != "admin" and not int(row["is_approved"] if row["is_approved"] is not None else 1):
+        return None
     return dict(row)
 
 
-def login(login_name: str, password: str):
+def login(login_or_email: str, password: str):
+    ident = (login_or_email or "").strip()
+    if not ident:
+        return None, "введите логин или почту"
     with db.connect() as conn:
         row = conn.execute(
-            "SELECT id, password_hash, login, role, display_name FROM users WHERE login = ?",
-            (login_name.strip(),),
+            """
+            SELECT id, password_hash, login, email, role, display_name, is_approved
+            FROM users
+            WHERE lower(login) = lower(?) OR lower(COALESCE(email, '')) = lower(?)
+            """,
+            (ident, ident),
         ).fetchone()
     if not row or not verify_password(password, row["password_hash"]):
-        return None
+        return None, "неверный логин/почта или пароль"
+    is_app = int(row["is_approved"]) if row["is_approved"] is not None else 1
+    if row["role"] != "admin" and not is_app:
+        return None, "Ваша заявка отправлена и ожидает подтверждения администратором."
     token = create_session(row["id"])
-    return token, {
-        "id": row["id"],
-        "login": row["login"],
-        "role": row["role"],
-        "display_name": row["display_name"],
-    }
+    return (
+        token,
+        {
+            "id": row["id"],
+            "login": row["login"],
+            "email": row["email"] or "",
+            "role": row["role"],
+            "display_name": row["display_name"],
+        },
+    ), None
+
+
+def register_user(first_name: str, last_name: str, email: str, password: str):
+    fn = (first_name or "").strip()
+    ln = (last_name or "").strip()
+    em = (email or "").strip().lower()
+    pw = password or ""
+    if not fn or not ln:
+        raise ValueError("Укажите Имя и Фамилию")
+    if not em or "@" not in em:
+        raise ValueError("Укажите корректную почту (email)")
+    if len(pw) < 4:
+        raise ValueError("Пароль должен быть не короче 4 символов")
+
+    display_name = f"{fn} {ln}".strip()
+    uid = str(uuid.uuid4())
+    now = db._utc_now()
+    prof = {"first_name": fn, "last_name": ln, "email": em}
+
+    with db.connect() as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM users WHERE lower(login) = lower(?) OR lower(COALESCE(email, '')) = lower(?)",
+            (em, em),
+        ).fetchone()
+        if exists:
+            raise ValueError("Пользователь с такой почтой уже зарегистрирован")
+        conn.execute(
+            """
+            INSERT INTO users (
+                id, login, email, password_hash, role, display_name,
+                is_approved, created_at, profile_json
+            ) VALUES (?, ?, ?, ?, 'user', ?, 0, ?, ?)
+            """,
+            (uid, em, em, hash_password(pw), display_name, now, json.dumps(prof, ensure_ascii=False)),
+        )
+    return {"id": uid, "email": em, "display_name": display_name, "is_approved": False}

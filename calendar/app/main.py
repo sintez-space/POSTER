@@ -7,7 +7,8 @@ import uuid
 from pathlib import Path
 
 from fastapi import Body, Cookie, FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from PIL import Image, ImageOps
 
 from . import auth, db, demo_seed, export_poster
@@ -16,9 +17,12 @@ from .paths import AVATARS_DIR, CALENDAR_ROOT, UPLOADS_DIR, ensure_dirs
 from .slots import SLOT_HOURS, validate_scheduled_at, week_range
 
 app = FastAPI(title="POSTER Calendar", docs_url="/api/docs")
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 STATIC = CALENDAR_ROOT / "static"
 SESSION_COOKIE = "calendar_session"
 MAX_AVATAR_BYTES = 100 * 1024
+MAX_VIDEO_BYTES = 150 * 1024 * 1024
+MAX_IMAGE_BYTES = 7 * 1024 * 1024
 MAX_CAROUSEL_IMAGES = 15
 
 
@@ -121,13 +125,31 @@ def static_files(path: str):
 
 @app.post("/api/login")
 def api_login(login: str = Form(...), password: str = Form(...)):
-    result = auth.login(login, password)
+    result, err = auth.login(login, password)
     if not result:
-        raise HTTPException(status_code=400, detail="неверный логин или пароль")
+        raise HTTPException(status_code=400, detail=err or "неверный логин или пароль")
     token, user = result
     resp = JSONResponse({"ok": True, "user": user})
     resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400 * 14)
     return resp
+
+
+@app.post("/api/register")
+def api_register(
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+):
+    try:
+        user_info = auth.register_user(first_name, last_name, email, password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "ok": True,
+        "message": "Заявка отправлена администратору! После подтверждения вы сможете войти по почте и паролю.",
+        "user": user_info,
+    }
 
 
 @app.post("/api/logout")
@@ -425,7 +447,11 @@ def api_submission_video(submission_id: str, calendar_session: str | None = Cook
     path = UPLOADS_DIR / submission_id / sub["video_name"]
     if not path.is_file() or path.stat().st_size < 32:
         raise HTTPException(status_code=404, detail="файл не найден")
-    return FileResponse(path, media_type="video/mp4")
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        headers={"Cache-Control": "public, max-age=86400", "Accept-Ranges": "bytes"},
+    )
 
 
 @app.get("/api/submissions/pool")
@@ -537,6 +563,42 @@ def api_admin_authors(calendar_session: str | None = Cookie(default=None)):
         prof_obj["series_tags"] = tags_by_user.get(uid, [])
         out.append(prof_obj)
     return out
+
+
+@app.get("/api/admin/pending-users")
+def api_admin_pending_users(calendar_session: str | None = Cookie(default=None)):
+    user = auth.user_by_token(calendar_session)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="только админ")
+    with db.connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM users WHERE COALESCE(is_approved, 1) = 0 ORDER BY created_at DESC"
+        ).fetchall()
+    return [db.row_to_user_profile(r) for r in rows]
+
+
+@app.post("/api/admin/users/{user_id}/approve")
+def api_admin_approve_user(user_id: str, calendar_session: str | None = Cookie(default=None)):
+    user = auth.user_by_token(calendar_session)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="только админ")
+    with db.connect() as conn:
+        conn.execute("UPDATE users SET is_approved = 1 WHERE id = ?", (user_id,))
+    return {"ok": True}
+
+
+@app.delete("/api/admin/users/{user_id}")
+def api_admin_delete_user(user_id: str, calendar_session: str | None = Cookie(default=None)):
+    user = auth.user_by_token(calendar_session)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="только админ")
+    if user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="нельзя удалить самого себя")
+    with db.connect() as conn:
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM user_series_tags WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    return {"ok": True}
 
 
 def _check_series_tag_limit(conn, user_id: str, series_tag: str, exclude_id: str | None = None):
@@ -836,22 +898,39 @@ async def api_upload_files(
     carousel_files = list(sub["carousel_files"] or [])
 
     if video and video.filename:
+        ext = Path(video.filename).suffix.lower() or ".mp4"
+        tmp_video = dest / f"__uploading_video{ext}"
+        total_v = 0
+        try:
+            with tmp_video.open("wb") as vf:
+                while True:
+                    chunk = await video.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total_v += len(chunk)
+                    if total_v > MAX_VIDEO_BYTES:
+                        raise HTTPException(status_code=400, detail="Видео превышает лимит 150 МБ")
+                    vf.write(chunk)
+        except Exception:
+            tmp_video.unlink(missing_ok=True)
+            raise
         if sub["video_name"]:
             old = dest / sub["video_name"]
             if old.is_file():
                 old.unlink()
-        ext = Path(video.filename).suffix.lower() or ".mp4"
         video_name = f"video{ext}"
-        (dest / video_name).write_bytes(await video.read())
+        tmp_video.replace(dest / video_name)
 
     if cover and cover.filename:
+        raw_cov = await cover.read()
+        if len(raw_cov) > MAX_IMAGE_BYTES:
+            raise HTTPException(status_code=400, detail="Обложка превышает лимит 7 МБ")
         if sub["cover_name"]:
             old = dest / sub["cover_name"]
             if old.is_file():
                 old.unlink()
         for t_old in dest.glob(".thumb_*_cover*"):
             t_old.unlink(missing_ok=True)
-        raw_cov = await cover.read()
         ext = Path(cover.filename).suffix.lower() or ".jpg"
         cover_name = f"cover_{_short_hash(raw_cov)}{ext}"
         (dest / cover_name).write_bytes(raw_cov)
@@ -860,6 +939,15 @@ async def api_upload_files(
     if carousel:
         valid_uploads = [u for u in carousel if u and u.filename]
         if valid_uploads:
+            slides_payload = []
+            for up in valid_uploads[:MAX_CAROUSEL_IMAGES]:
+                raw_slide = await up.read()
+                if len(raw_slide) > MAX_IMAGE_BYTES:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Картинка «{up.filename}» превышает лимит 7 МБ",
+                    )
+                slides_payload.append((up.filename, raw_slide))
             for old_name in carousel_files:
                 old_p = dest / old_name
                 if old_p.is_file():
@@ -867,9 +955,8 @@ async def api_upload_files(
             for t_old in dest.glob(".thumb_*"):
                 t_old.unlink(missing_ok=True)
             carousel_files = []
-            for idx, up in enumerate(valid_uploads[:MAX_CAROUSEL_IMAGES], start=1):
-                raw_slide = await up.read()
-                ext = Path(up.filename).suffix.lower() or ".jpg"
+            for idx, (orig_name, raw_slide) in enumerate(slides_payload, start=1):
+                ext = Path(orig_name).suffix.lower() or ".jpg"
                 h = _short_hash(raw_slide)
                 cname = f"{idx:02d}_{h}{ext}"
                 (dest / cname).write_bytes(raw_slide)
@@ -913,3 +1000,16 @@ def api_export_poster(calendar_session: str | None = Cookie(default=None)):
     if not user or user["role"] != "admin":
         raise HTTPException(status_code=403, detail="только админ")
     return export_poster.export_approved()
+
+
+@app.get("/api/admin/export-day-zip")
+def api_export_day_zip(date: str, calendar_session: str | None = Cookie(default=None)):
+    user = auth.user_by_token(calendar_session)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="только админ")
+    zip_bytes, filename = export_poster.build_day_zip(date)
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

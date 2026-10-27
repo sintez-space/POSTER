@@ -3,31 +3,104 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Вход — календарь POSTER</title>
+  <title>Вход и регистрация — календарь POSTER</title>
   <link rel="stylesheet" href="/static/common.css">
 </head>
-<body>
-  <div class="login-box">
-    <h1 style="margin:0 0 8px;font-size:1.2rem">Календарь материалов</h1>
-    <p class="text-muted" style="margin:0 0 16px">Локальный вход. Демо: author / author или admin / admin</p>
-    <form id="form">
-      <div class="field"><label>Логин</label><input name="login" autocomplete="username" required></div>
-      <div class="field"><label>Пароль</label><input name="password" type="password" autocomplete="current-password" required></div>
-      <p class="error" id="err"></p>
+<body style="overflow-y:auto">
+  <div class="login-box" style="max-width:420px;margin:60px auto">
+    <h1 style="margin:0 0 8px;font-size:1.25rem">Календарь материалов POSTER</h1>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0 18px">
+      <button type="button" class="primary" id="tabLoginBtn">Вход</button>
+      <button type="button" class="outline" id="tabRegBtn">Регистрация</button>
+    </div>
+
+    <!-- Форма входа -->
+    <form id="loginForm">
+      <div class="field">
+        <label>Почта или логин</label>
+        <input name="login" autocomplete="username" placeholder="email@example.com" required>
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <input name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <p class="error" id="loginErr"></p>
       <button type="submit" class="primary" style="width:100%">Войти</button>
     </form>
+
+    <!-- Форма регистрации (уходит на апрув админу) -->
+    <form id="regForm" hidden>
+      <div class="profile-grid-2">
+        <div class="field">
+          <label>Имя</label>
+          <input name="first_name" placeholder="Иван" required>
+        </div>
+        <div class="field">
+          <label>Фамилия</label>
+          <input name="last_name" placeholder="Петров" required>
+        </div>
+      </div>
+      <div class="field">
+        <label>Почта (Email)</label>
+        <input name="email" type="email" autocomplete="email" placeholder="author@example.com" required>
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <input name="password" type="password" autocomplete="new-password" minlength="4" placeholder="Минимум 4 символа" required>
+      </div>
+      <p class="error" id="regErr"></p>
+      <p id="regOk" style="color:var(--primary);font-size:13px;margin:8px 0" hidden></p>
+      <button type="submit" class="primary" style="width:100%">Отправить заявку на регистрацию</button>
+    </form>
   </div>
+
   <script src="/static/api.js"></script>
   <script>
-    document.getElementById("form").onsubmit = async (e) => {
+    const loginForm = document.getElementById("loginForm");
+    const regForm = document.getElementById("regForm");
+    const tabLoginBtn = document.getElementById("tabLoginBtn");
+    const tabRegBtn = document.getElementById("tabRegBtn");
+
+    function setTab(mode) {
+      const isLogin = mode === "login";
+      loginForm.hidden = !isLogin;
+      regForm.hidden = isLogin;
+      tabLoginBtn.className = isLogin ? "primary" : "outline";
+      tabRegBtn.className = isLogin ? "outline" : "primary";
+    }
+
+    tabLoginBtn.onclick = () => setTab("login");
+    tabRegBtn.onclick = () => setTab("reg");
+
+    loginForm.onsubmit = async (e) => {
       e.preventDefault();
-      const err = document.getElementById("err");
+      const err = document.getElementById("loginErr");
       err.textContent = "";
       const fd = new FormData(e.target);
       try {
         await apiForm("/api/login", fd);
         location.href = "/";
-      } catch (ex) { showError(err, ex); }
+      } catch (ex) {
+        showError(err, ex);
+      }
+    };
+
+    regForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const err = document.getElementById("regErr");
+      const okEl = document.getElementById("regOk");
+      err.textContent = "";
+      okEl.hidden = true;
+      const fd = new FormData(e.target);
+      try {
+        const res = await apiForm("/api/register", fd);
+        okEl.textContent = res.message || "Заявка отправлена на апрув администратору!";
+        okEl.hidden = false;
+        regForm.reset();
+      } catch (ex) {
+        showError(err, ex);
+      }
     };
   </script>
 </body>

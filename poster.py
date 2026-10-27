@@ -285,9 +285,38 @@ def load_posts(folder, limit, cfg=None):
         for text_file in free_texts:
             say(f"{text_file.name}: нет видео с тем же именем")
     posts.sort(key=lambda post: natural_key(Path(post["stem"])))
+    queue_file = folder / "poster_queue.json"
+    if queue_file.is_file():
+        try:
+            qdata = json.loads(queue_file.read_text(encoding="utf-8"))
+            by_stem = {str(e.get("stem")): e for e in (qdata.get("entries") or []) if isinstance(e, dict)}
+            for p in posts:
+                q_entry = by_stem.get(p["stem"])
+                if q_entry and q_entry.get("schedule_start"):
+                    p["schedule_start"] = q_entry["schedule_start"]
+        except Exception as exc:
+            say(f"poster_queue.json не прочитан: {exc}")
     if limit and limit > 0:
         posts = posts[:limit]
     return posts
+
+
+def load_queue_state(folder: Path) -> dict:
+    state_file = folder / ".poster_state.json"
+    if state_file.is_file():
+        try:
+            return json.loads(state_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"completed": {}, "failed": {}}
+
+
+def save_queue_state(folder: Path, state: dict):
+    state_file = folder / ".poster_state.json"
+    try:
+        state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as exc:
+        say(f"не удалось сохранить состояние очереди: {exc}")
 
 
 def video_for_form(video):
@@ -3621,6 +3650,7 @@ def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
 
     pw = None
     failed = 0
+    q_state = load_queue_state(Path(folder))
     try:
         pw, context = connect(cfg["port"], slowmo)
         context.set_default_timeout(15000)
@@ -3636,7 +3666,17 @@ def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
                 say(f"{site_id}: ещё не включено. {site.get('note', '')}")
                 continue
             for index, post in enumerate(posts):
-                moment = start + timedelta(minutes=interval * index) if start else None
+                task_key = f"{site_id}:{post['stem']}"
+                if q_state.get("completed", {}).get(task_key):
+                    say(f"=== {site_id} {post['stem']}: пропуск (уже выполнено в очереди) ===")
+                    continue
+                if post.get("schedule_start"):
+                    try:
+                        moment = parse_schedule(post["schedule_start"])
+                    except Exception:
+                        moment = start + timedelta(minutes=interval * index) if start else None
+                else:
+                    moment = start + timedelta(minutes=interval * index) if start else None
                 page = None
                 try:
                     site_run = site
@@ -3663,15 +3703,20 @@ def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
                             "vk_channel_name": (cfg.get("vk_channel_name") or site.get("vk_channel_name") or "").strip(),
                         }
                     text = prepare_caption(cfg, site_run, post, adapt, site_id)
-                    say(f"=== {site_id} {post['stem']} ===")
+                    say(f"=== {site_id} {post['stem']} ({moment or 'без расписания'}) ===")
                     if site_id == "youtube":
                         say(f"название: {post.get('youtube_title', '')}")
                     page = context.new_page()
                     install_dialog_guard(page)
                     page.bring_to_front()
                     filler(page, site_run, post, text, moment)
+                    q_state.setdefault("completed", {})[task_key] = datetime.now().isoformat(timespec="seconds")
+                    q_state.get("failed", {}).pop(task_key, None)
+                    save_queue_state(Path(folder), q_state)
                 except StopSite as exc:
                     failed += 1
+                    q_state.setdefault("failed", {})[task_key] = {"step": exc.step, "error": str(exc)}
+                    save_queue_state(Path(folder), q_state)
                     say(f"{site_id} {post['stem']}: {exc.step}: {exc}")
                     if page is not None:
                         dump_error(page, site_id, post["stem"], exc.step, exc)
@@ -3680,6 +3725,8 @@ def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
                         break
                 except Exception as exc:
                     failed += 1
+                    q_state.setdefault("failed", {})[task_key] = {"step": "run", "error": str(exc)}
+                    save_queue_state(Path(folder), q_state)
                     say(f"{site_id} {post['stem']}: {exc}")
                     if page is not None:
                         dump_error(page, site_id, post["stem"], "run", exc)
@@ -3703,6 +3750,7 @@ def parse_args(argv):
     parser.add_argument("--config", default="", help="путь к config.json")
     parser.add_argument("--vk-url", default="", help="кабинет VK Видео (клипы сообщества)")
     parser.add_argument("--vk-channel-name", default="", help="имя канала в модалке «Новый клип»")
+    parser.add_argument("--reset-queue", action="store_true", help="очистить .poster_state.json и начать очередь заново")
     return parser.parse_args(argv)
 
 
@@ -3720,6 +3768,11 @@ def main(argv=None):
         if (args.vk_channel_name or "").strip():
             cfg["vk_channel_name"] = args.vk_channel_name.strip()
         folder = abs_under(ROOT, args.folder or cfg.get("posts_folder") or "posts")
+        if args.reset_queue:
+            state_f = Path(folder) / ".poster_state.json"
+            if state_f.is_file():
+                state_f.unlink()
+                say("очередь сброшена (.poster_state.json удалён)")
         raw_sites = args.sites or ",".join(cfg.get("sites") or ["tiktok"])
         site_ids = [part.strip().lower() for part in raw_sites.split(",") if part.strip()]
         limit = args.limit if args.limit is not None else cfg.get("limit")
