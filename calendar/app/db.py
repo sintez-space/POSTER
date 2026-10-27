@@ -152,9 +152,21 @@ def row_to_submission(row):
     slot_part = int(row["slot_part"]) if "slot_part" in keys and row["slot_part"] in (1, 2) else 1
     media_kind = row["media_kind"] if "media_kind" in keys and row["media_kind"] in MEDIA_KINDS else "video"
     author_avatar = row["author_avatar"] if "author_avatar" in keys else None
+    author_name = (
+        (row["author_name"] if "author_name" in keys and row["author_name"] else None)
+        or desc.get("author_name_saved")
+        or "Удалённый автор"
+    )
+    author_login = (
+        (row["author_login"] if "author_login" in keys and row["author_login"] else None)
+        or desc.get("author_login_saved")
+        or "deleted"
+    )
     return {
         "id": row["id"],
         "user_id": row["user_id"],
+        "author_name": author_name,
+        "author_login": author_login,
         "scheduled_at": row["scheduled_at"] or "",
         "slot_part": slot_part,
         "media_kind": media_kind,

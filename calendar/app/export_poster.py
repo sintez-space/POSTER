@@ -112,7 +112,7 @@ def build_day_zip(date_iso: str) -> tuple[bytes, str]:
             """
             SELECT s.*, u.profile_json, u.display_name AS author_name
             FROM submissions s
-            JOIN users u ON u.id = s.user_id
+            LEFT JOIN users u ON u.id = s.user_id
             WHERE s.scheduled_at LIKE ? AND s.scheduled_at != ''
             ORDER BY s.scheduled_at ASC, s.slot_part ASC
             """,
@@ -225,7 +225,7 @@ def export_approved():
             """
             SELECT s.*, u.profile_json, u.display_name AS author_name
             FROM submissions s
-            JOIN users u ON u.id = s.user_id
+            LEFT JOIN users u ON u.id = s.user_id
             WHERE s.status IN ('approved', 'submitted') AND s.scheduled_at IS NOT NULL AND s.scheduled_at != ''
             ORDER BY s.scheduled_at ASC, s.slot_part ASC
             """

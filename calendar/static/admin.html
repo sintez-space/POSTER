@@ -62,11 +62,12 @@
       </div>
     </div>
 
-    <!-- 4. Справа: Экспорт + Выход -->
+    <!-- 4. Справа: Экспорт + Пароль + Выход -->
     <div class="top-right-account-col">
       <button type="button" class="primary big-profile-btn" id="exportBtn" style="border:none">
         <span>Экспорт в POSTER</span>
       </button>
+      <button type="button" class="outline logout-under-btn" id="changeMyPwdBtn">Пароль</button>
       <button type="button" class="outline logout-under-btn" id="logout">Выход</button>
     </div>
   </header>
@@ -454,9 +455,21 @@
         section.innerHTML = `
           <div class="admin-user-group-head">
             ${avHtml}
-            <div>
+            <div style="flex:1;min-width:0">
               <h3>${g.author_name}</h3>
               <span class="text-muted" style="font-size:11px">@${g.author_login} · В календаре: ${g.scheduled.length} · Вне календаря: ${g.unscheduled.length}</span>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${
+                key && key !== "unknown"
+                  ? `<button type="button" class="outline" data-u-pwd="${key}" style="padding:4px 10px;font-size:11px">Сменить пароль</button>`
+                  : ""
+              }
+              ${
+                key && key !== "unknown" && key !== me.id
+                  ? `<button type="button" class="outline" data-u-del="${key}" style="padding:4px 10px;font-size:11px;color:var(--destructive)">Удалить юзера</button>`
+                  : ""
+              }
             </div>
           </div>
           <div class="admin-user-subcolumns">
@@ -496,6 +509,27 @@
               compact: false,
             })
           );
+        }
+
+        const pwdBtn = section.querySelector("[data-u-pwd]");
+        if (pwdBtn) {
+          pwdBtn.onclick = () =>
+            WeekPlanner.openPasswordModal({
+              userId: key,
+              userName: g.author_name,
+              isSelf: key === me.id,
+            });
+        }
+        const delBtn = section.querySelector("[data-u-del]");
+        if (delBtn) {
+          delBtn.onclick = () =>
+            WeekPlanner.confirmDeleteUserModal(
+              { id: key, display_name: g.author_name, login: g.author_login },
+              async (u, mode) => {
+                await api(`/api/admin/users/${u.id}?mode=${mode}`, { method: "DELETE" });
+                await loadAll();
+              }
+            );
         }
 
         mount.appendChild(section);
@@ -567,7 +601,33 @@
               <strong>Личные теги связки</strong>
               <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${tagsPills || "—"}</div>
             </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;padding-top:10px;border-top:1px solid var(--border)">
+            <button type="button" class="outline" data-au-pwd="${au.id}" style="flex:1;font-size:12px">Сменить пароль</button>
+            ${
+              au.id !== me.id
+                ? `<button type="button" class="outline" data-au-del="${au.id}" style="color:var(--destructive);font-size:12px">Удалить юзера</button>`
+                : ""
+            }
           </div>`;
+
+        card.querySelector("[data-au-pwd]").onclick = () => {
+          WeekPlanner.openPasswordModal({
+            userId: au.id,
+            userName: au.display_name || au.login,
+            isSelf: au.id === me.id,
+          });
+        };
+        const auDelBtn = card.querySelector("[data-au-del]");
+        if (auDelBtn) {
+          auDelBtn.onclick = () => {
+            WeekPlanner.confirmDeleteUserModal(au, async (u, mode) => {
+              await api(`/api/admin/users/${u.id}?mode=${mode}`, { method: "DELETE" });
+              await loadAll();
+            });
+          };
+        }
+
         grid.appendChild(card);
       }
       mount.appendChild(grid);
@@ -1044,6 +1104,9 @@
     };
     document.getElementById("closeBtnTop").onclick = closeModal;
     modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+    document.getElementById("changeMyPwdBtn").onclick = () => {
+      WeekPlanner.openPasswordModal({ isSelf: true });
+    };
     document.getElementById("logout").onclick = async () => {
       await api("/api/logout", { method: "POST" });
       location.href = "/login.html";
@@ -1066,7 +1129,17 @@
         statusLabels: STATUS_RU,
         onOpen: (id, item) => openModal(id, item),
         onCreate: async (key, slotPart = 1, mediaKind = "video") => {
-          openNewDraftModal(key, slotPart, mediaKind);
+          WeekPlanner.openSlotPickerModal({
+            key,
+            slotPart,
+            mediaKind,
+            poolItems,
+            me,
+            onPicked: async () => {
+              await loadAll();
+            },
+            onCreateNew: (k, sp, mk) => openNewDraftModal(k, sp, mk),
+          });
         },
         onMoved: () => refreshPool(),
         resolveItem: (id) => poolItems.find((x) => x.id === id),

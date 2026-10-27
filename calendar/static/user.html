@@ -332,9 +332,10 @@
         <p class="error" id="profileErr"></p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="primary" id="saveProfileBtn">Сохранить профиль</button>
+        <button type="button" class="outline" id="userChangePwdBtn">Сменить пароль</button>
         <span class="footer-spacer"></span>
         <button type="button" class="ghost" id="closeProfileBtn">Закрыть</button>
+        <button type="button" class="primary" id="saveProfileBtn">Сохранить профиль</button>
       </div>
     </div>
   </div>
@@ -434,7 +435,17 @@
         statusLabels: STATUS_RU,
         onOpen: (id) => openSub(id),
         onCreate: async (key, slotPart = 1, mediaKind = "video") => {
-          openNewDraftModal(key, slotPart, mediaKind);
+          WeekPlanner.openSlotPickerModal({
+            key,
+            slotPart,
+            mediaKind,
+            poolItems,
+            me,
+            onPicked: async () => {
+              await refreshAll();
+            },
+            onCreateNew: (k, sp, mk) => openNewDraftModal(k, sp, mk),
+          });
         },
         onMoved: () => refreshAll(),
         resolveItem: (id) => poolItems.find((x) => x.id === id),
@@ -1101,6 +1112,9 @@
     }
 
     document.getElementById("openProfileBtn").onclick = openProfileModal;
+    document.getElementById("userChangePwdBtn").onclick = () => {
+      WeekPlanner.openPasswordModal({ isSelf: true });
+    };
     const closeProfileModal = () => profileModal.classList.remove("open");
     document.getElementById("closeProfileBtn").onclick = closeProfileModal;
     document.getElementById("closeProfileTop").onclick = closeProfileModal;

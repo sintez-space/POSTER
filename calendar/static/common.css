@@ -82,6 +82,10 @@ main.layout-full {
   display: flex;
   flex-direction: column;
 }
+#weekMount[hidden],
+.admin-tab-pane[hidden] {
+  display: none !important;
+}
 
 button, .btn {
   font: inherit;

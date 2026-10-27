@@ -36,18 +36,16 @@ def get_submission(submission_id: str):
     with db.connect() as conn:
         row = conn.execute(
             """
-            SELECT s.*, u.display_name AS author_name, u.avatar_name AS author_avatar
+            SELECT s.*, u.display_name AS author_name, u.login AS author_login, u.avatar_name AS author_avatar
             FROM submissions s
-            JOIN users u ON u.id = s.user_id
+            LEFT JOIN users u ON u.id = s.user_id
             WHERE s.id = ?
             """,
             (submission_id,),
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="материал не найден")
-    sub = db.row_to_submission(row)
-    sub["author_name"] = row["author_name"]
-    return sub
+    return db.row_to_submission(row)
 
 
 def assert_owner_or_admin(user, sub):
@@ -202,6 +200,31 @@ def api_update_my_profile(
         )
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
     return db.row_to_user_profile(row)
+
+
+@app.post("/api/me/password")
+def api_change_my_password(
+    body: dict = Body(default_factory=dict),
+    calendar_session: str | None = Cookie(default=None),
+):
+    user = auth.user_by_token(calendar_session)
+    if not user:
+        raise HTTPException(status_code=401, detail="нужен вход")
+    current_password = str(body.get("current_password") or "")
+    new_password = str(body.get("new_password") or "")
+    if len(new_password) < 4:
+        raise HTTPException(status_code=400, detail="Новый пароль должен быть не короче 4 символов")
+    with db.connect() as conn:
+        row = conn.execute("SELECT password_hash FROM users WHERE id = ?", (user["id"],)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="пользователь не найден")
+        if current_password and not auth.verify_password(current_password, row["password_hash"]):
+            raise HTTPException(status_code=400, detail="Неверный текущий пароль")
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (auth.hash_password(new_password), user["id"]),
+        )
+    return {"ok": True}
 
 
 def _compress_avatar_bw(raw: bytes, max_bytes: int = MAX_AVATAR_BYTES) -> bytes:
@@ -365,9 +388,9 @@ def api_calendar_week(week_start: str, calendar_session: str | None = Cookie(def
     with db.connect() as conn:
         rows = conn.execute(
             """
-            SELECT s.*, u.display_name AS author_name, u.avatar_name AS author_avatar
+            SELECT s.*, u.display_name AS author_name, u.login AS author_login, u.avatar_name AS author_avatar
             FROM submissions s
-            JOIN users u ON u.id = s.user_id
+            LEFT JOIN users u ON u.id = s.user_id
             WHERE s.scheduled_at >= ? AND s.scheduled_at <= ?
             ORDER BY s.scheduled_at ASC, s.slot_part ASC
             """,
@@ -376,7 +399,6 @@ def api_calendar_week(week_start: str, calendar_session: str | None = Cookie(def
     items = []
     for row in rows:
         sub = db.row_to_submission(row)
-        sub["author_name"] = row["author_name"]
         sub["is_mine"] = sub["user_id"] == user["id"]
         items.append(sub)
     return {"week_start": start_s, "week_end": end_s[:10], "slot_hours": list(SLOT_HOURS), "items": items}
@@ -463,15 +485,13 @@ def api_pool_submissions(calendar_session: str | None = Cookie(default=None)):
         rows = conn.execute(
             """
             SELECT s.*, u.display_name AS author_name, u.login AS author_login, u.avatar_name AS author_avatar
-            FROM submissions s JOIN users u ON u.id = s.user_id
-            ORDER BY u.display_name ASC, s.updated_at DESC
+            FROM submissions s LEFT JOIN users u ON u.id = s.user_id
+            ORDER BY COALESCE(u.display_name, '') ASC, s.updated_at DESC
             """
         ).fetchall()
     out = []
     for row in rows:
         sub = db.row_to_submission(row)
-        sub["author_name"] = row["author_name"]
-        sub["author_login"] = row["author_login"]
         sub["is_mine"] = sub["user_id"] == user["id"]
         out.append(sub)
     return out
@@ -485,8 +505,8 @@ def api_my_submissions(calendar_session: str | None = Cookie(default=None)):
     with db.connect() as conn:
         rows = conn.execute(
             """
-            SELECT s.*, u.display_name AS author_name, u.avatar_name AS author_avatar
-            FROM submissions s JOIN users u ON u.id = s.user_id
+            SELECT s.*, u.display_name AS author_name, u.login AS author_login, u.avatar_name AS author_avatar
+            FROM submissions s LEFT JOIN users u ON u.id = s.user_id
             WHERE s.user_id = ?
             ORDER BY s.updated_at DESC
             """,
@@ -495,7 +515,6 @@ def api_my_submissions(calendar_session: str | None = Cookie(default=None)):
     out = []
     for r in rows:
         sub = db.row_to_submission(r)
-        sub["author_name"] = r["author_name"]
         sub["is_mine"] = True
         out.append(sub)
     return out
@@ -510,15 +529,13 @@ def api_admin_submissions(calendar_session: str | None = Cookie(default=None)):
         rows = conn.execute(
             """
             SELECT s.*, u.display_name AS author_name, u.login AS author_login, u.avatar_name AS author_avatar
-            FROM submissions s JOIN users u ON u.id = s.user_id
+            FROM submissions s LEFT JOIN users u ON u.id = s.user_id
             ORDER BY s.scheduled_at DESC
             """
         ).fetchall()
     out = []
     for row in rows:
         sub = db.row_to_submission(row)
-        sub["author_name"] = row["author_name"]
-        sub["author_login"] = row["author_login"]
         out.append(sub)
     return out
 
@@ -587,18 +604,74 @@ def api_admin_approve_user(user_id: str, calendar_session: str | None = Cookie(d
     return {"ok": True}
 
 
+@app.post("/api/admin/users/{user_id}/password")
+def api_admin_change_user_password(
+    user_id: str,
+    body: dict = Body(default_factory=dict),
+    calendar_session: str | None = Cookie(default=None),
+):
+    user = auth.user_by_token(calendar_session)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="только админ")
+    new_password = str(body.get("new_password") or "")
+    if len(new_password) < 4:
+        raise HTTPException(status_code=400, detail="Пароль должен быть не короче 4 символов")
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (auth.hash_password(new_password), user_id),
+        )
+    return {"ok": True}
+
+
 @app.delete("/api/admin/users/{user_id}")
-def api_admin_delete_user(user_id: str, calendar_session: str | None = Cookie(default=None)):
+def api_admin_delete_user(
+    user_id: str,
+    mode: str = "keep_works",
+    calendar_session: str | None = Cookie(default=None),
+):
     user = auth.user_by_token(calendar_session)
     if not user or user["role"] != "admin":
         raise HTTPException(status_code=403, detail="только админ")
     if user_id == user["id"]:
         raise HTTPException(status_code=400, detail="нельзя удалить самого себя")
+
     with db.connect() as conn:
+        target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="пользователь не найден")
+        disp_name = target["display_name"] or target["login"]
+        login_name = target["login"]
+        sub_rows = conn.execute(
+            "SELECT id, descriptions_json FROM submissions WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+
+        if mode == "delete_works":
+            for sr in sub_rows:
+                folder = UPLOADS_DIR / sr["id"]
+                if folder.is_dir():
+                    shutil.rmtree(folder, ignore_errors=True)
+            conn.execute("DELETE FROM submissions WHERE user_id = ?", (user_id,))
+        else:
+            for sr in sub_rows:
+                try:
+                    d = json.loads(sr["descriptions_json"] or "{}")
+                except Exception:
+                    d = {}
+                d["author_name_saved"] = disp_name
+                d["author_login_saved"] = login_name
+                conn.execute(
+                    "UPDATE submissions SET descriptions_json = ? WHERE id = ?",
+                    (json.dumps(d, ensure_ascii=False), sr["id"]),
+                )
+
+        if target["avatar_name"]:
+            (AVATARS_DIR / target["avatar_name"]).unlink(missing_ok=True)
         conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         conn.execute("DELETE FROM user_series_tags WHERE user_id = ?", (user_id,))
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    return {"ok": True}
+    return {"ok": True, "mode": mode}
 
 
 def _check_series_tag_limit(conn, user_id: str, series_tag: str, exclude_id: str | None = None):

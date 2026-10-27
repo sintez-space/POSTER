@@ -198,6 +198,279 @@ const WeekPlanner = (() => {
     wrap.classList.add("open");
   }
 
+  /**
+   * Модальное окно удаления юзера админом с двумя вариантами:
+   * 1) Удалить только юзера (работы остаются)
+   * 2) Удалить юзера и все его работы
+   */
+  function confirmDeleteUserModal(userObj, onDeleteWithMode) {
+    let wrap = document.getElementById("confirmDeleteUserBackdrop");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "confirmDeleteUserBackdrop";
+      wrap.className = "modal-backdrop";
+      wrap.style.zIndex = "85";
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:440px" role="dialog" aria-modal="true">
+          <div class="modal-header">
+            <div class="modal-header-text">
+              <h2>Удаление пользователя</h2>
+              <p class="modal-desc" id="confirmDeleteUserDesc"></p>
+            </div>
+            <button type="button" class="modal-close ghost" id="confirmDeleteUserClose">×</button>
+          </div>
+          <div class="modal-body" style="gap:10px;padding-top:14px">
+            <button type="button" class="outline" id="delUserKeepWorksBtn" style="width:100%;text-align:left;padding:12px 14px">
+              <strong style="display:block;color:var(--primary);margin-bottom:2px">1. Удалить только юзера (оставить работы)</strong>
+              <span class="text-muted" style="font-size:11.5px">Аккаунт и доступ удаляются, но все его карточки и ролики остаются в календаре и материалах.</span>
+            </button>
+            <button type="button" class="outline" id="delUserAndWorksBtn" style="width:100%;text-align:left;padding:12px 14px;border-color:var(--destructive)">
+              <strong style="display:block;color:var(--destructive);margin-bottom:2px">2. Удалить юзера И все его работы</strong>
+              <span class="text-muted" style="font-size:11.5px">Полное удаление аккаунта вместе со всеми его карточками, видео и каруселями без возврата.</span>
+            </button>
+          </div>
+          <div class="modal-footer">
+            <span class="footer-spacer"></span>
+            <button type="button" class="ghost" id="confirmDeleteUserCancel">Отмена</button>
+          </div>
+        </div>`;
+      document.body.appendChild(wrap);
+      const close = () => wrap.classList.remove("open");
+      wrap.addEventListener("click", (e) => {
+        if (e.target === wrap) close();
+      });
+      wrap.querySelector("#confirmDeleteUserClose").onclick = close;
+      wrap.querySelector("#confirmDeleteUserCancel").onclick = close;
+    }
+    const nameStr = userObj.display_name || userObj.login || "Пользователь";
+    wrap.querySelector("#confirmDeleteUserDesc").textContent = `Выберите вариант удаления для «${nameStr}» (@${userObj.login}):`;
+
+    wrap.querySelector("#delUserKeepWorksBtn").onclick = async () => {
+      wrap.classList.remove("open");
+      if (onDeleteWithMode) await onDeleteWithMode(userObj, "keep_works");
+    };
+    wrap.querySelector("#delUserAndWorksBtn").onclick = async () => {
+      if (!confirm(`Точно удалить «${nameStr}» И ВСЕ его карточки/файлы навсегда?`)) return;
+      wrap.classList.remove("open");
+      if (onDeleteWithMode) await onDeleteWithMode(userObj, "delete_works");
+    };
+    wrap.classList.add("open");
+  }
+
+  /**
+   * Модальное окно смены пароля (для себя или админом для любого юзера).
+   */
+  function openPasswordModal({ userId = null, userName = "", isSelf = true }) {
+    let wrap = document.getElementById("changePasswordBackdrop");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "changePasswordBackdrop";
+      wrap.className = "modal-backdrop";
+      wrap.style.zIndex = "85";
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:380px" role="dialog" aria-modal="true">
+          <div class="modal-header">
+            <div class="modal-header-text">
+              <h2 id="pwdModalTitle">Смена пароля</h2>
+              <p class="modal-desc" id="pwdModalDesc"></p>
+            </div>
+            <button type="button" class="modal-close ghost" id="pwdModalClose">×</button>
+          </div>
+          <div class="modal-body" style="padding-top:14px">
+            <div class="field" id="pwdCurrentWrap">
+              <label for="pwdCurrentInput">Текущий пароль</label>
+              <input type="password" id="pwdCurrentInput" autocomplete="current-password" placeholder="Текущий пароль">
+            </div>
+            <div class="field">
+              <label for="pwdNewInput">Новый пароль</label>
+              <input type="password" id="pwdNewInput" autocomplete="new-password" placeholder="Минимум 4 символа">
+            </div>
+            <div class="field">
+              <label for="pwdConfirmInput">Повторите новый пароль</label>
+              <input type="password" id="pwdConfirmInput" autocomplete="new-password" placeholder="Повторите новый пароль">
+            </div>
+            <p class="error" id="pwdModalErr"></p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="ghost" id="pwdModalCancel">Отмена</button>
+            <span class="footer-spacer"></span>
+            <button type="button" class="primary" id="pwdModalSave">Сохранить пароль</button>
+          </div>
+        </div>`;
+      document.body.appendChild(wrap);
+      const close = () => wrap.classList.remove("open");
+      wrap.addEventListener("click", (e) => {
+        if (e.target === wrap) close();
+      });
+      wrap.querySelector("#pwdModalClose").onclick = close;
+      wrap.querySelector("#pwdModalCancel").onclick = close;
+    }
+
+    wrap.querySelector("#pwdModalTitle").textContent = isSelf ? "Сменить мой пароль" : "Сменить пароль пользователя";
+    wrap.querySelector("#pwdModalDesc").textContent = isSelf
+      ? "Введите текущий и новый пароль"
+      : `Новый пароль для «${userName}»`;
+    wrap.querySelector("#pwdCurrentWrap").hidden = !isSelf;
+    wrap.querySelector("#pwdCurrentInput").value = "";
+    wrap.querySelector("#pwdNewInput").value = "";
+    wrap.querySelector("#pwdConfirmInput").value = "";
+    const errEl = wrap.querySelector("#pwdModalErr");
+    errEl.textContent = "";
+
+    wrap.querySelector("#pwdModalSave").onclick = async () => {
+      errEl.textContent = "";
+      const cur = wrap.querySelector("#pwdCurrentInput").value;
+      const nw = wrap.querySelector("#pwdNewInput").value;
+      const cf = wrap.querySelector("#pwdConfirmInput").value;
+      if (nw.length < 4) {
+        errEl.textContent = "Новый пароль должен быть не короче 4 символов";
+        return;
+      }
+      if (nw !== cf) {
+        errEl.textContent = "Пароли не совпадают";
+        return;
+      }
+      try {
+        if (isSelf) {
+          await api("/api/me/password", {
+            method: "POST",
+            body: JSON.stringify({ current_password: cur, new_password: nw }),
+          });
+        } else {
+          await api(`/api/admin/users/${userId}/password`, {
+            method: "POST",
+            body: JSON.stringify({ new_password: nw }),
+          });
+        }
+        wrap.classList.remove("open");
+        alert("Пароль успешно обновлён.");
+      } catch (e) {
+        errEl.textContent = e.message || String(e);
+      }
+    };
+
+    wrap.classList.add("open");
+  }
+
+  /**
+   * Модальное окно выбора доступного материала при клике на «+» в слоте календаря.
+   * Показывает свободные материалы (сгруппированные по авторам, как во вкладке «Материалы»):
+   * клик по карточке сразу ставит её в выбранный слот календаря!
+   */
+  function openSlotPickerModal({ key, slotPart = 1, mediaKind = "video", poolItems = [], me, onPicked, onCreateNew }) {
+    let wrap = document.getElementById("slotMaterialPickerBackdrop");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "slotMaterialPickerBackdrop";
+      wrap.className = "modal-backdrop";
+      wrap.style.zIndex = "75";
+      wrap.innerHTML = `
+        <div class="modal modal-wide" style="max-width:860px" role="dialog" aria-modal="true">
+          <div class="modal-header">
+            <div class="modal-header-text">
+              <h2 id="slotPickerTitle">Выбрать материал для размещения в слот</h2>
+              <p class="modal-desc" id="slotPickerDesc"></p>
+            </div>
+            <button type="button" class="modal-close ghost" id="slotPickerClose">×</button>
+          </div>
+          <div class="modal-body" style="overflow-y:auto;max-height:66vh" id="slotPickerBody"></div>
+          <div class="modal-footer">
+            <button type="button" class="ghost" id="slotPickerCancel">Отмена</button>
+            <span class="footer-spacer"></span>
+            <button type="button" class="primary" id="slotPickerCreateNewBtn">+ Создать новый материал в этот слот</button>
+          </div>
+        </div>`;
+      document.body.appendChild(wrap);
+      const close = () => wrap.classList.remove("open");
+      wrap.addEventListener("click", (e) => {
+        if (e.target === wrap) close();
+      });
+      wrap.querySelector("#slotPickerClose").onclick = close;
+      wrap.querySelector("#slotPickerCancel").onclick = close;
+    }
+
+    const kindRu = mediaKind === "carousel" ? "Карусель" : "Рилс (видео)";
+    wrap.querySelector("#slotPickerTitle").textContent = `Разместить материал в слот · ${fmtLocal(key)} (слот ${slotPart})`;
+    wrap.querySelector("#slotPickerDesc").textContent =
+      `Нажмите на любой свободный материал ниже, чтобы сразу поставить его в расписание (${kindRu}), или создайте новый.`;
+
+    const createBtn = wrap.querySelector("#slotPickerCreateNewBtn");
+    createBtn.textContent = mediaKind === "carousel" ? "+ Создать новую карусель в слот" : "+ Создать новый рилс в слот";
+    createBtn.onclick = () => {
+      wrap.classList.remove("open");
+      if (onCreateNew) onCreateNew(key, slotPart, mediaKind);
+    };
+
+    const body = wrap.querySelector("#slotPickerBody");
+    body.innerHTML = "";
+
+    const isAdmin = me && me.role === "admin";
+    const freeItems = (poolItems || []).filter((it) => {
+      if (slotForItem(it)) return false;
+      if (!isAdmin && !it.is_mine) return false;
+      return true;
+    });
+
+    if (!freeItems.length) {
+      body.innerHTML = `
+        <div class="admin-user-group" style="text-align:center;padding:28px 16px">
+          <p class="text-muted" style="margin:0 0 12px">Свободных материалов вне расписания сейчас нет.</p>
+        </div>`;
+      wrap.classList.add("open");
+      return;
+    }
+
+    const byAuthor = new Map();
+    for (const it of freeItems) {
+      const aName = it.author_name || "Автор";
+      if (!byAuthor.has(aName)) byAuthor.set(aName, []);
+      byAuthor.get(aName).push(it);
+    }
+
+    for (const [authorName, list] of byAuthor.entries()) {
+      const group = document.createElement("div");
+      group.className = "admin-user-group";
+      group.style.marginBottom = "12px";
+      group.innerHTML = `
+        <div class="admin-subcol-title" style="margin-bottom:8px">
+          <span>${escHtml(authorName)} — свободные материалы</span>
+          <span class="badge primary">${list.length}</span>
+        </div>
+        <div class="admin-cards-grid"></div>`;
+      const grid = group.querySelector(".admin-cards-grid");
+
+      for (const item of list) {
+        const card = buildCard(item, {
+          me,
+          canDrag: () => false,
+          inSlot: false,
+          compact: false,
+        });
+        card.style.cursor = "pointer";
+        card.title = "Нажмите, чтобы поставить этот материал в выбранный слот";
+        const PickHandler = async (ev) => {
+          ev.stopPropagation();
+          try {
+            await api(`/api/submissions/${item.id}`, {
+              method: "PUT",
+              body: JSON.stringify({ scheduled_at: key, slot_part: slotPart }),
+            });
+            wrap.classList.remove("open");
+            if (onPicked) await onPicked(item);
+          } catch (err) {
+            alert(err.message || String(err));
+          }
+        };
+        card.addEventListener("click", PickHandler);
+        card.addEventListener("dblclick", PickHandler);
+        grid.appendChild(card);
+      }
+      body.appendChild(group);
+    }
+
+    wrap.classList.add("open");
+  }
+
   function buildCard(item, opts) {
     const {
       me,
@@ -809,6 +1082,9 @@ const WeekPlanner = (() => {
     renderMiniMonth,
     buildCard,
     confirmDeleteModal,
+    confirmDeleteUserModal,
+    openPasswordModal,
+    openSlotPickerModal,
     mondayOf,
     isoDate,
     todayIso,
