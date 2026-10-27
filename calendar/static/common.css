@@ -527,10 +527,11 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
 .week-card.dragging { opacity: 0.45; }
 
 .week-card-cover {
-  width: 54px;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 9 / 16;
   flex-shrink: 0;
   align-self: stretch;
-  height: 100%;
   background: oklch(0.24 0.03 190);
   position: relative;
   overflow: hidden;
@@ -539,18 +540,22 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   justify-content: center;
   border-right: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
 }
-/* У карусели всегда квадратное превью */
+/* У карусели всегда квадратное превью 1:1 */
 .week-card.is-carousel .week-card-cover {
-  width: 102px;
+  width: auto;
+  height: 100%;
   aspect-ratio: 1 / 1;
 }
-.week-card.compact.is-carousel .week-card-cover {
-  width: 56px;
-  height: 56px;
-  aspect-ratio: 1 / 1;
-}
-.week-card.half-slot .week-card-cover {
+.week-card.half-slot:not(.is-carousel) .week-card-cover {
   width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  border-right: none;
+}
+.week-card.half-slot.is-carousel .week-card-cover {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1 / 1;
   border-right: none;
 }
 .carousel-count-badge {
@@ -982,13 +987,6 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
 .pool-three-rows.pool-few .week-card.compact {
   min-height: 112px;
 }
-.pool-three-rows.pool-few .week-card-cover {
-  width: 58px;
-}
-.pool-three-rows.pool-few .week-card.compact.is-carousel .week-card-cover {
-  width: 96px;
-  height: 100%;
-}
 .pool-three-rows.pool-few .card-author-avatar {
   width: 34px;
   height: 34px;
@@ -1005,13 +1003,6 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   min-height: 78px;
   height: 78px;
 }
-.pool-three-rows.pool-medium .week-card-cover {
-  width: 44px;
-}
-.pool-three-rows.pool-medium .week-card.compact.is-carousel .week-card-cover {
-  width: 72px;
-  height: 78px;
-}
 .pool-three-rows.pool-many {
   grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
   grid-auto-rows: 54px;
@@ -1022,11 +1013,14 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   max-height: 54px;
 }
 .pool-three-rows .week-card-cover {
-  width: 34px;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 9 / 16;
 }
 .pool-three-rows .week-card.compact.is-carousel .week-card-cover {
-  width: 56px;
-  height: 56px;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 1 / 1;
 }
 .pool-three-rows .card-author-avatar {
   width: 24px;

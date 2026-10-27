@@ -3676,7 +3676,7 @@ def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
                     except Exception:
                         moment = start + timedelta(minutes=interval * index) if start else None
                 else:
-                    moment = start + timedelta(minutes=interval * index) if start else None
+                moment = start + timedelta(minutes=interval * index) if start else None
                 page = None
                 try:
                     site_run = site

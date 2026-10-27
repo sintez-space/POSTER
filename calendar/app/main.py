@@ -433,7 +433,7 @@ def api_submission_cover(
             target = first_slide
     if not target:
         raise HTTPException(status_code=404, detail="нет обложки")
-    out_path = _ensure_thumb(target, 260) if thumb else target
+    out_path = _ensure_thumb(target, 420) if thumb else target
     return FileResponse(out_path, headers={"Cache-Control": "public, max-age=3600"})
 
 
