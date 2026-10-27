@@ -1,0 +1,27 @@
+{
+  "chrome_path": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+  "profile_dir": "chrome_profile",
+  "port": 9333,
+  "posts_folder": "posts",
+  "lm_mode": "local",
+  "lm_url": "http://localhost:1234/v1/chat/completions",
+  "lm_api_url": "",
+  "lm_api_key": "",
+  "lm_model": "",
+  "vk_url": "https://cabinet.vkvideo.ru/dashboard/@public210918942?section=video_my_content&subsection=video_my_content_clips",
+  "vk_channel_name": "SINTEZ.SPACE",
+  "youtube_title": "",
+  "instagram_collaborators": "",
+  "instagram_reel_tags": "",
+  "schedule_start": "2026-10-29T17:55",
+  "interval_minutes": 60,
+  "adapt": false,
+  "limit": 1,
+  "slowmo": 0,
+  "sites": [
+    "instagram",
+    "tiktok",
+    "youtube",
+    "vk"
+  ]
+}

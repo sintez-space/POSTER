@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Постер</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --mantine-spacing-xs: 10px;
+      --mantine-spacing-sm: 12px;
+      --mantine-spacing-md: 16px;
+      --mantine-radius-sm: 0.75rem;
+      --radius-lg: 1.4rem;
+      --mantine-color-blue-light: oklch(0.9947 0.0074 164.9465 / 0.35);
+      --mantine-color-blue-light-color: oklch(0.8545 0.1675 159.6564);
+      --error: oklch(0.6665 0.2111 2.8306);
+      --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+      --font-mono: "IBM Plex Mono", Consolas, monospace;
+      --type-display-size: 1.625rem;
+      --type-display-weight: 700;
+      --type-display-leading: 1.2;
+      --type-title-size: 1.25rem;
+      --type-title-weight: 600;
+      --type-title-leading: 1.3;
+      --type-body-size: 0.875rem;
+      --type-body-weight: 400;
+      --type-body-leading: 1.5;
+      --type-body-tracking: 0;
+      --type-ui-size: 0.8125rem;
+      --type-ui-weight: 500;
+      --type-ui-leading: 1.35;
+      --type-label-size: 0.75rem;
+      --type-label-weight: 500;
+      --type-label-leading: 1.35;
+      --type-meta-size: 0.6875rem;
+      --type-meta-weight: 600;
+      --type-meta-leading: 1.3;
+      --type-meta-tracking: 0.04em;
+      --type-code-size: 0.8125rem;
+      --type-code-leading: 1.55;
+      --log-font-size: calc(var(--type-code-size) / 1.5);
+      --log-line-height: calc(var(--type-code-leading) / 1.5);
+      --measure-prose: 65ch;
+      --accent: oklch(0.8545 0.1675 159.6564);
+      --accent-dark: oklch(0.6184 0.1489 155.4444);
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: oklch(0.994 0 0);
+      --navbar-bg: oklch(1 0 0);
+      --text: oklch(0 0 0);
+      --border: oklch(0.9722 0.0034 247.8581);
+      --link: oklch(0.4386 0 0);
+      --link-icon: oklch(0.4386 0 0);
+      --link-hover-bg: oklch(0.9702 0 0);
+      --link-hover: oklch(0 0 0);
+      --input-bg: oklch(0.9401 0 0);
+      --input-border: oklch(0.9722 0.0034 247.8581);
+      --muted: oklch(0.4386 0 0);
+      --surface: oklch(0.9702 0 0);
+      --log-bg: oklch(0.9933 0.0011 197.139);
+      --log-text: var(--accent-dark);
+      --btn-bg: oklch(0.994 0 0);
+      --btn-primary-bg: var(--accent);
+      --btn-primary-fg: oklch(0 0 0);
+      --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+      --mantine-color-blue-light: oklch(0.9947 0.0074 164.9465);
+      --mantine-color-blue-light-color: var(--accent);
+      --switch-off: oklch(0.88 0 0);
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: oklch(0 0 0);
+      --navbar-bg: oklch(0.1448 0 0);
+      --text: oklch(0.9551 0 0);
+      --border: oklch(0.2138 0.0019 286.2347);
+      --link: oklch(0.9551 0 0);
+      --link-icon: oklch(0.6731 0 0);
+      --link-hover-bg: oklch(0.2653 0.0037 286.1465);
+      --link-hover: oklch(0.997 0 0);
+      --input-bg: oklch(0.3523 0 0);
+      --input-border: oklch(0.2138 0.0019 286.2347);
+      --muted: oklch(0.6731 0 0);
+      --surface: oklch(0.2653 0.0037 286.1465);
+      --log-bg: oklch(0.1448 0 0);
+      --log-text: var(--accent);
+      --btn-bg: oklch(0.221 0.0015 197.0452);
+      --btn-primary-bg: var(--accent);
+      --btn-primary-fg: oklch(0 0 0);
+      --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+      --mantine-color-blue-light: oklch(0.3004 0.0609 159.8938);
+      --mantine-color-blue-light-color: var(--accent);
+      --type-body-leading: 1.55;
+      --type-body-tracking: 0.012em;
+      --type-code-leading: 1.6;
+      --switch-off: oklch(0.35 0 0);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: var(--type-body-size);
+      font-weight: var(--type-body-weight);
+      line-height: var(--type-body-leading);
+      letter-spacing: var(--type-body-tracking);
+      min-height: 100vh;
+      text-wrap: pretty;
+    }
+    .app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    button.action:focus-visible,
+    .iconBtn:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    input:focus-visible {
+      outline: none;
+      border-color: var(--mantine-color-blue-light-color);
+      box-shadow: var(--focus-ring);
+    }
+
+    .workspace {
+      flex: 1;
+      display: grid;
+      grid-template-columns: var(--settings-col, minmax(280px, 42%)) 5px minmax(220px, 1fr);
+      gap: 0;
+      min-width: 0;
+      min-height: 0;
+      height: 100vh;
+    }
+    .settings {
+      padding: var(--mantine-spacing-md);
+      overflow-y: auto;
+      min-width: 0;
+    }
+    .splitter {
+      position: relative;
+      z-index: 2;
+      cursor: col-resize;
+      background: var(--border);
+      touch-action: none;
+      user-select: none;
+    }
+    .splitter::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -4px;
+      right: -4px;
+    }
+    .splitter:hover,
+    .splitter.isDragging {
+      background: var(--mantine-color-blue-light-color);
+    }
+    body.isResizing {
+      cursor: col-resize;
+      user-select: none;
+    }
+    body.isResizing iframe {
+      pointer-events: none;
+    }
+    .journal {
+      padding: var(--mantine-spacing-md);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+      width: 100%;
+    }
+    #theme-toggle {
+      margin-left: auto;
+    }
+    .actionWithIcon {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .actionWithIcon svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    #schedule_start.toolbarSchedule {
+      width: auto;
+      min-width: 10.5rem;
+      max-width: 12.5rem;
+      flex: 0 1 auto;
+      padding: 9px 10px;
+      font-size: var(--type-ui-size);
+      line-height: 1.2;
+    }
+    .iconBtn {
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--mantine-radius-sm);
+      border: 1px solid var(--border);
+      background: var(--btn-bg);
+      color: var(--link);
+      cursor: pointer;
+      padding: 0;
+    }
+    .iconBtn:hover:not(:disabled) { background: var(--link-hover-bg); }
+    .iconBtn:disabled { opacity: 0.45; cursor: default; }
+    .iconBtn svg { width: 20px; height: 20px; }
+    .iconBtn.iconAccent {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .iconBtn.iconBtnPlay {
+      background: var(--btn-primary-bg);
+      border-color: var(--btn-primary-bg);
+      color: var(--btn-primary-fg);
+    }
+    .iconBtn.iconBtnPlay:hover:not(:disabled) {
+      filter: brightness(1.06);
+      background: var(--btn-primary-bg);
+    }
+    .iconBtn.iconBtnPlay svg {
+      margin-left: 2px;
+    }
+    #chrome.iconBtn {
+      color: var(--accent);
+    }
+
+    .siteGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .siteRow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      min-width: 0;
+      border-radius: var(--mantine-radius-sm);
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .siteRow.isDisabled {
+      opacity: 0.45;
+    }
+    .siteLead {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
+    }
+    .siteName {
+      font-size: var(--type-ui-size);
+      font-weight: var(--type-ui-weight);
+      line-height: var(--type-ui-leading);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .siteIcon {
+      width: 22px;
+      height: 22px;
+      display: block;
+      flex-shrink: 0;
+      color: var(--accent);
+    }
+    .settingsDivider {
+      height: 1px;
+      background: var(--border);
+      margin: 8px 0 16px;
+    }
+    .lmModeRow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      margin-bottom: 4px;
+    }
+    .lmModeRow label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      font-size: var(--type-body-size);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .accordionNote {
+      margin: 0;
+      font-size: var(--type-label-size);
+      line-height: var(--type-label-leading);
+      color: var(--muted);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+    .switchTrack {
+      position: absolute;
+      inset: 0;
+      background: var(--switch-off);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .switchTrack::after {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: var(--text);
+      border-radius: 50%;
+      transition: transform 0.15s ease;
+    }
+    .switch input:checked + .switchTrack {
+      background: var(--mantine-color-blue-light-color);
+    }
+    .switch input:checked + .switchTrack::after {
+      transform: translateX(20px);
+      background: var(--btn-primary-fg);
+    }
+    .switch input:disabled + .switchTrack {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    .field { margin-bottom: 16px; }
+    label.fieldLabel {
+      display: block;
+      margin: 0 0 6px;
+      font-size: var(--type-label-size);
+      font-weight: var(--type-label-weight);
+      line-height: var(--type-label-leading);
+      color: var(--muted);
+    }
+    input[type="text"], input[type="url"], input[type="number"], input[type="datetime-local"] {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid var(--input-border);
+      border-radius: var(--mantine-radius-sm);
+      background: var(--input-bg);
+      color: var(--text);
+      font-family: inherit;
+      font-size: var(--type-body-size);
+      line-height: var(--type-body-leading);
+    }
+    input::placeholder { color: var(--muted); }
+    .pair { display: grid; grid-template-columns: 1fr 100px; gap: 12px; }
+    .with-button { display: flex; gap: 10px; align-items: center; }
+    .with-button input { flex: 1; min-width: 0; }
+
+    .accordion {
+      border: 1px solid var(--border);
+      border-radius: var(--mantine-radius-sm);
+      margin-bottom: 10px;
+      background: var(--surface);
+    }
+    .accordion summary {
+      padding: 12px 14px;
+      font-size: var(--type-ui-size);
+      font-weight: var(--type-ui-weight);
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+    .accordion summary::-webkit-details-marker { display: none; }
+    .accordion summary::after {
+      content: "▸";
+      float: right;
+      color: var(--muted);
+      transition: transform 0.15s ease;
+    }
+    .accordion[open] summary::after {
+      transform: rotate(90deg);
+    }
+    .accordionBody {
+      padding: 0 14px 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    button.action {
+      font-family: inherit;
+      font-size: var(--type-ui-size);
+      font-weight: var(--type-ui-weight);
+      line-height: var(--type-ui-leading);
+      border-radius: var(--mantine-radius-sm);
+      border: 1px solid var(--border);
+      background: var(--btn-bg);
+      color: var(--text);
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+    button.action:hover:not(:disabled) { background: var(--link-hover-bg); }
+    button.action.primary {
+      background: var(--btn-primary-bg);
+      color: var(--btn-primary-fg);
+      border-color: var(--btn-primary-bg);
+    }
+    button.action:disabled { opacity: 0.45; cursor: default; }
+
+    #status {
+      display: none;
+      margin: 0 0 12px;
+      font-size: var(--type-label-size);
+      line-height: var(--type-label-leading);
+      color: var(--muted);
+    }
+    #status.error {
+      display: block;
+      color: var(--error);
+      font-weight: 600;
+    }
+
+    pre#log {
+      flex: 1;
+      margin: 0;
+      padding: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 0;
+      overflow: auto;
+      font-family: var(--font-mono);
+      font-size: var(--log-font-size);
+      line-height: var(--log-line-height);
+      font-variant-numeric: tabular-nums slashed-zero;
+      font-feature-settings: "tnum" 1, "zero" 1;
+      background: var(--log-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--mantine-radius-sm);
+      color: var(--log-text);
+    }
+
+    @media (max-width: 960px) {
+      .workspace {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: 100vh;
+      }
+      .splitter { display: none; }
+      .journal { min-height: 40vh; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="workspace" id="workspace">
+    <div class="settings">
+      <p id="status" role="status" aria-live="polite"></p>
+
+      <div class="toolbar">
+        <button type="button" class="iconBtn" id="chrome" aria-label="Chrome">
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="currentColor" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="currentColor" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="currentColor" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="currentColor" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        </button>
+        <input id="schedule_start" class="toolbarSchedule" type="datetime-local" step="300" aria-label="Время публикаций">
+        <button type="button" class="iconBtn iconBtnPlay" id="go" aria-label="Заполнить формы">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button type="button" class="iconBtn iconAccent" id="open-root" aria-label="Папка POSTER">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        </button>
+        <button type="button" class="iconBtn iconAccent" id="theme-toggle" aria-label="Сменить тему"></button>
+      </div>
+
+      <div class="siteGrid" id="sites"></div>
+
+      <details class="accordion">
+        <summary>Instagram</summary>
+        <div class="accordionBody">
+          <div class="field">
+            <label class="fieldLabel" for="instagram_collaborators">Коллабораторы</label>
+            <input id="instagram_collaborators" type="text" spellcheck="false" placeholder="user1, user2">
+          </div>
+          <div class="field">
+            <label class="fieldLabel" for="instagram_reel_tags">Теги на рилсе</label>
+            <input id="instagram_reel_tags" type="text" spellcheck="false" placeholder="user3, user4">
+          </div>
+        </div>
+      </details>
+
+      <details class="accordion">
+        <summary>TikTok</summary>
+        <div class="accordionBody">
+          <p class="accordionNote">Вход и загрузка через TikTok Studio в Chrome.</p>
+        </div>
+      </details>
+
+      <details class="accordion">
+        <summary>Ютуб</summary>
+        <div class="accordionBody">
+          <div class="field">
+            <label class="fieldLabel" for="youtube_title">Название по умолчанию</label>
+            <input id="youtube_title" type="text" spellcheck="false">
+          </div>
+        </div>
+      </details>
+
+      <details class="accordion">
+        <summary>ВК Клипы</summary>
+        <div class="accordionBody">
+          <div class="field">
+            <label class="fieldLabel" for="vk_url">Ссылка на клипы</label>
+            <input id="vk_url" type="url" spellcheck="false" placeholder="https://cabinet.vkvideo.ru/dashboard/…">
+          </div>
+          <div class="field">
+            <label class="fieldLabel" for="vk_channel_name">Имя канала</label>
+            <input id="vk_channel_name" type="text" spellcheck="false" placeholder="SINTEZ.SPACE">
+          </div>
+        </div>
+      </details>
+
+      <details class="accordion">
+        <summary>Telegram</summary>
+        <div class="accordionBody">
+          <p class="accordionNote">Скоро.</p>
+        </div>
+      </details>
+
+      <details class="accordion">
+        <summary>Макс</summary>
+        <div class="accordionBody">
+          <p class="accordionNote">Скоро.</p>
+        </div>
+      </details>
+
+      <div class="settingsDivider" role="presentation"></div>
+
+      <details class="accordion">
+        <summary>Chrome</summary>
+        <div class="accordionBody">
+          <div class="field">
+            <label class="fieldLabel" for="chrome_path">Chrome</label>
+            <input id="chrome_path" type="text" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="pair field">
+            <div>
+              <label class="fieldLabel" for="profile_dir">Профиль</label>
+              <input id="profile_dir" type="text" spellcheck="false" autocomplete="off">
+            </div>
+            <div>
+              <label class="fieldLabel" for="port">Порт</label>
+              <input id="port" type="number" min="1024" max="65535">
+            </div>
+          </div>
+          <div class="field">
+            <label class="fieldLabel" for="posts_folder">Папка постов</label>
+            <div class="with-button">
+              <input id="posts_folder" type="text" spellcheck="false" autocomplete="off">
+              <button type="button" class="action" id="open-posts">Открыть</button>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="accordion">
+        <summary>ЛЛМ</summary>
+        <div class="accordionBody">
+          <div class="field">
+            <span class="fieldLabel">Подключение</span>
+            <div class="lmModeRow" role="radiogroup" aria-label="Режим ЛЛМ">
+              <label><input type="radio" name="lm_mode" value="local" checked> Локально</label>
+              <label><input type="radio" name="lm_mode" value="api"> API</label>
+            </div>
+          </div>
+          <div id="lm-local-panel">
+            <div class="field">
+              <label class="fieldLabel" for="lm_url">Адрес (localhost)</label>
+              <input id="lm_url" type="text" spellcheck="false" placeholder="http://localhost:1234/v1/chat/completions">
+            </div>
+          </div>
+          <div id="lm-api-panel" hidden>
+            <div class="field">
+              <label class="fieldLabel" for="lm_api_url">URL API</label>
+              <input id="lm_api_url" type="url" spellcheck="false" placeholder="https://…/v1/chat/completions">
+            </div>
+            <div class="field">
+              <label class="fieldLabel" for="lm_api_key">Ключ API (необязательно)</label>
+              <input id="lm_api_key" type="password" spellcheck="false" autocomplete="off">
+            </div>
+          </div>
+          <div class="field">
+            <label class="fieldLabel" for="lm_model">Модель</label>
+            <input id="lm_model" type="text" spellcheck="false">
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Ширина колонок настроек и журнала" tabindex="0"></div>
+
+    <div class="journal">
+      <pre id="log" aria-label="Журнал">пока пусто</pre>
+    </div>
+  </div>
+</div>
+<script>
+const fields = ["chrome_path", "profile_dir", "port", "posts_folder", "schedule_start", "lm_url", "lm_api_url", "lm_api_key", "lm_model", "vk_url", "vk_channel_name", "youtube_title", "instagram_collaborators", "instagram_reel_tags"];
+const SITE_ORDER = ["instagram", "tiktok", "youtube", "vk", "telegram", "max"];
+const THEME_KEY = "poster-ui-theme";
+const SPLIT_KEY = "poster-ui-split";
+const SPLIT_MIN = 260;
+const SPLIT_MIN_LOG = 220;
+let running = false;
+
+function initSplit() {
+  const workspace = document.getElementById("workspace");
+  const splitter = document.getElementById("splitter");
+  if (!workspace || !splitter) return;
+
+  const saved = parseInt(localStorage.getItem(SPLIT_KEY), 10);
+  if (saved > 0) workspace.style.setProperty("--settings-col", saved + "px");
+
+  function clampWidth(px) {
+    const max = workspace.getBoundingClientRect().width - SPLIT_MIN_LOG - splitter.offsetWidth;
+    return Math.round(Math.max(SPLIT_MIN, Math.min(max, px)));
+  }
+
+  function setWidth(px) {
+    const w = clampWidth(px);
+    workspace.style.setProperty("--settings-col", w + "px");
+    localStorage.setItem(SPLIT_KEY, String(w));
+  }
+
+  function startDrag(clientX) {
+    const rect = workspace.getBoundingClientRect();
+    splitter.classList.add("isDragging");
+    document.body.classList.add("isResizing");
+
+    function onMove(e) {
+      setWidth(e.clientX - rect.left);
+    }
+    function onUp() {
+      splitter.classList.remove("isDragging");
+      document.body.classList.remove("isResizing");
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
+  splitter.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    startDrag(e.clientX);
+  });
+
+  splitter.addEventListener("keydown", (e) => {
+    const current = workspace.getBoundingClientRect();
+    const settings = workspace.querySelector(".settings");
+    const w = settings ? settings.getBoundingClientRect().width : current.width * 0.42;
+    if (e.key === "ArrowLeft") { e.preventDefault(); setWidth(w - 24); }
+    if (e.key === "ArrowRight") { e.preventDefault(); setWidth(w + 24); }
+    if (e.key === "Home") { e.preventDefault(); setWidth(SPLIT_MIN); }
+    if (e.key === "End") {
+      e.preventDefault();
+      setWidth(current.width - SPLIT_MIN_LOG - splitter.offsetWidth);
+    }
+  });
+
+  splitter.addEventListener("dblclick", () => {
+    workspace.style.removeProperty("--settings-col");
+    localStorage.removeItem(SPLIT_KEY);
+  });
+
+  window.addEventListener("resize", () => {
+    const settings = workspace.querySelector(".settings");
+    if (!settings) return;
+    setWidth(settings.getBoundingClientRect().width);
+  });
+}
+
+const ICON_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>';
+const ICON_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+
+const SITE_ICONS = {
+  tiktok: '<svg class="siteIcon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.5a8.16 8.16 0 0 0 4.77 1.52V6.5a4.85 4.85 0 0 1-1-.81z"/></svg>',
+  vk: '<svg class="siteIcon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.07 2H8.93C3.33 2 2 3.33 2 8.93v6.14C2 20.67 3.33 22 8.93 22h6.14c5.6 0 6.93-1.33 6.93-6.93V8.93C22 3.33 20.67 2 15.07 2zm3.08 14.27h-1.46c-.55 0-.72-.44-1.71-1.42-.86-.86-1.24-.97-1.46-.97-.3 0-.38.09-.38.52v1.3c0 .37-.12.59-1.09.59-1.6 0-3.38-.97-4.63-2.78-1.88-2.66-2.4-4.66-2.4-4.79 0-.21.09-.4.52-.4h1.46c.39 0 .53.18.68.6.74 2.14 1.98 4.01 2.49 4.01.19 0 .28-.09.28-.58V9.74c-.06-.99-.58-1.07-.58-1.42 0-.18.15-.36.39-.36h2.3c.33 0 .45.18.45.57v3.08c0 .33.15.45.24.45.19 0 .35-.12.69-.46 1.07-1.19 1.84-3.03 1.84-3.03.1-.21.28-.4.67-.4h1.46c.44 0 .53.23.44.57-.18.84-1.93 3.45-1.93 3.45-.17.28-.23.4 0 .72.17.23.74.72 1.12 1.16.68.74 1.2 1.36 1.34 1.79.14.42-.07.63-.51.63z"/></svg>',
+  instagram: '<svg class="siteIcon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7.8 2h8.4C19.4 2 22 4.6 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8C4.6 22 2 19.4 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2m-.2 2A3.6 3.6 0 0 0 4 7.6v8.8C4 18.39 5.61 20 7.6 20h8.8a3.6 3.6 0 0 0 3.6-3.6V7.6C20 5.61 18.39 4 16.4 4H7.6m9.65 1.5a1.25 1.25 0 0 1 1.25 1.25A1.25 1.25 0 0 1 17.25 8 1.25 1.25 0 0 1 16 6.75a1.25 1.25 0 0 1 1.25-1.25M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg>',
+  youtube: '<svg class="siteIcon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg>',
+  telegram: '<svg class="siteIcon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.78 12.06 8.4 16.78l1.04-4.46 9.66-4.1-9.66-4.1-1.04-4.46 12.6 7.34-12.6 7.34z"/></svg>',
+  max: '<svg class="siteIcon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 5h4.2l3.8 6.2L17.8 5H22l-6.5 9.5L22 20h-4.3l-4-6.4L9.3 20H5l6.6-9.5L6 5z"/></svg>',
+};
+
+const SITE_LABELS = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  youtube: "Ютуб",
+  vk: "ВК Клипы",
+  telegram: "Telegram",
+  max: "Макс",
+};
+
+function syncLmPanels() {
+  const mode = document.querySelector('input[name="lm_mode"]:checked')?.value || "local";
+  document.getElementById("lm-local-panel").hidden = mode !== "local";
+  document.getElementById("lm-api-panel").hidden = mode !== "api";
+}
+
+function applyTheme(theme) {
+  const t = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem(THEME_KEY, t);
+  const btn = document.getElementById("theme-toggle");
+  btn.innerHTML = t === "dark" ? ICON_SUN : ICON_MOON;
+  btn.setAttribute("aria-label", t === "dark" ? "Светлая тема" : "Тёмная тема");
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === "light" || saved === "dark") {
+    applyTheme(saved);
+    return;
+  }
+  applyTheme(window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+}
+
+document.getElementById("theme-toggle").onclick = () => {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  applyTheme(next);
+};
+initTheme();
+
+function snapFive(value) {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(value || "");
+  if (!match) return value;
+  const date = new Date(match[1] + "T" + match[2] + ":" + match[3] + ":00");
+  date.setMinutes(Math.round(date.getMinutes() / 5) * 5, 0, 0);
+  const pad = (n) => String(n).padStart(2, "0");
+  return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) + "T" + pad(date.getHours()) + ":" + pad(date.getMinutes());
+}
+
+function formData() {
+  const data = {
+    adapt: false,
+    sites: [],
+    lm_mode: document.querySelector('input[name="lm_mode"]:checked')?.value || "local",
+  };
+  for (const id of fields) data[id] = document.getElementById(id).value;
+  for (const box of document.querySelectorAll("#sites input[type=checkbox]")) {
+    if (box.checked) data.sites.push(box.value);
+  }
+  return data;
+}
+
+function fill(meta) {
+  const cfg = meta.config;
+  for (const id of fields) {
+    if (cfg[id] !== undefined && cfg[id] !== null) {
+      document.getElementById(id).value = id === "schedule_start" ? snapFive(cfg[id]) : cfg[id];
+    }
+  }
+  const byId = Object.fromEntries((meta.sites || []).map((site) => [site.id, site]));
+  const box = document.getElementById("sites");
+  box.innerHTML = "";
+  for (const siteId of SITE_ORDER) {
+    const site = byId[siteId];
+    if (!site) continue;
+    const row = document.createElement("div");
+    row.className = "siteRow" + (site.ready ? "" : " isDisabled");
+    const name = SITE_LABELS[site.id] || site.id;
+    row.title = site.ready ? name : name + " (скоро)";
+    row.innerHTML =
+      '<div class="siteLead">' +
+      (SITE_ICONS[site.id] || '<span class="siteIcon"></span>') +
+      '<span class="siteName">' + name + "</span></div>" +
+      '<label class="switch" aria-label="' + name + '"><input type="checkbox" value="' + site.id + '"' +
+      (site.ready && (cfg.sites || []).includes(site.id) ? " checked" : "") +
+      (site.ready ? "" : " disabled") +
+      '><span class="switchTrack"></span></label>';
+    box.append(row);
+  }
+  const lmMode = cfg.lm_mode === "api" ? "api" : "local";
+  const lmRadio = document.querySelector('input[name="lm_mode"][value="' + lmMode + '"]');
+  if (lmRadio) lmRadio.checked = true;
+  syncLmPanels();
+}
+
+async function api(path, payload) {
+  const opts = payload === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) };
+  const response = await fetch(path, opts);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "ошибка запроса");
+  return data;
+}
+
+function clearStatus() {
+  const st = document.getElementById("status");
+  st.classList.remove("error");
+  st.textContent = "";
+}
+
+async function reload() {
+  const meta = await api("/api/meta");
+  fill(meta);
+  clearStatus();
+}
+
+async function save() {
+  const data = await api("/api/config", formData());
+  fill(data);
+  clearStatus();
+}
+
+function setBusy(value) {
+  running = value;
+  for (const id of ["go", "chrome"]) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = value;
+  }
+}
+
+function showLog(data) {
+  const pre = document.getElementById("log");
+  pre.textContent = data.lines.length ? data.lines.join("\n") : "пока пусто";
+  pre.scrollTop = pre.scrollHeight;
+}
+
+async function pollActive() {
+  const data = await api("/api/log");
+  showLog(data);
+  if (data.running) {
+    setTimeout(pollActive, 800);
+  } else {
+    setBusy(false);
+    running = false;
+    reload().catch(show);
+    scheduleIdleLog();
+  }
+}
+
+async function pollIdleOnce() {
+  const data = await api("/api/log");
+  if (!running) showLog(data);
+  if (data.running) {
+    running = true;
+    setBusy(true);
+    pollActive();
+  }
+}
+
+function scheduleIdleLog() {
+  setTimeout(async () => {
+    try { await pollIdleOnce(); } catch (_) {}
+    if (!running) scheduleIdleLog();
+  }, 2500);
+}
+
+function bindClick(id, handler) {
+  const el = document.getElementById(id);
+  if (el) el.onclick = handler;
+}
+
+async function startChrome() {
+  try {
+    await save();
+    const data = await api("/api/chrome", {});
+    if (!data.already) {
+      const st = document.getElementById("status");
+      st.classList.remove("error");
+      st.textContent = "";
+    }
+  } catch (err) { show(err); }
+}
+
+bindClick("chrome", () => startChrome());
+bindClick("go", () => launch(false));
+async function openFolder(path) {
+  await api(path, {});
+  clearStatus();
+}
+
+bindClick("open-root", () => openFolder("/api/open/root").catch(show));
+bindClick("open-posts", () => openFolder("/api/open/posts").catch(show));
+
+async function launch(dry) {
+  try {
+    await save();
+    setBusy(true);
+    await api("/api/run", { dry });
+    running = true;
+    pollActive();
+  } catch (err) {
+    setBusy(false);
+    show(err);
+  }
+}
+
+function show(err) {
+  const st = document.getElementById("status");
+  st.classList.add("error");
+  let msg = err.message || String(err);
+  if (msg === "нет такого адреса") {
+    msg += " — перезапусти панель (start_panel.bat), затем Ctrl+F5";
+  }
+  st.textContent = msg;
+}
+
+document.getElementById("schedule_start").addEventListener("change", (event) => {
+  event.target.value = snapFive(event.target.value);
+  save().catch(show);
+});
+
+document.querySelector(".settings").addEventListener("change", (event) => {
+  if (event.target.matches('input[name="lm_mode"]')) {
+    syncLmPanels();
+  }
+  if (event.target.matches("input") && event.target.id !== "schedule_start") {
+    save().catch(show);
+  }
+});
+
+initSplit();
+syncLmPanels();
+reload().catch(show);
+pollIdleOnce().catch(show);
+scheduleIdleLog();
+</script>
+</body>
+</html>

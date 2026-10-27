@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+chrome_profile/
+*_profile/
+.upload/
+errors/*
+!errors/.gitkeep
+run.log
+panel.log
+calendar/data/
+node_modules/
+panel-ui/
+_vk_walk/
+_vk_*.txt

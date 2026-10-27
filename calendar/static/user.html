@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Мои материалы</title>
+  <link rel="stylesheet" href="/static/common.css">
+</head>
+<body>
+  <header class="top-dashboard-bar">
+    <div class="mini-cal-wrap">
+      <div class="mini-cal-box" id="miniMonthMount" title="Нажмите на день, чтобы перейти к неделе"></div>
+      <div class="mini-cal-week-nav">
+        <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
+        <strong id="weekLabel"></strong>
+        <button type="button" id="next" aria-label="Следующая неделя">→</button>
+      </div>
+    </div>
+
+    <div class="top-big-create-col">
+      <button type="button" class="big-action-btn" id="newPoolCardBtn">
+        <span class="big-icon">+</span>
+        <span>Рилс</span>
+      </button>
+      <button type="button" class="big-action-btn" id="newPoolCarouselBtn">
+        <span class="big-icon">+</span>
+        <span>Карусель</span>
+      </button>
+    </div>
+
+    <div class="top-pool-area" id="poolMount" title="Нераспределённые карточки (перетащите в расписание или обратно сюда)"></div>
+
+    <div class="top-right-account-col">
+      <button type="button" class="big-profile-btn" id="openProfileBtn">
+        <img id="headerAvatar" alt="" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+        <span id="hello">Профиль</span>
+      </button>
+      <button type="button" class="outline logout-under-btn" id="logout">Выход</button>
+    </div>
+  </header>
+
+  <main class="layout-full">
+    <div id="weekMount"></div>
+  </main>
+
+  <!-- Модалка карточки видео / карусели -->
+  <div class="modal-backdrop" id="modal">
+    <div class="modal modal-wide" id="modalPanel" role="dialog" aria-labelledby="modalTitle">
+      <form id="editForm">
+        <input type="hidden" id="subId">
+        <input id="subCover" type="file" accept="image/*" hidden>
+        <input id="subVideo" type="file" accept="video/*" hidden>
+        <input id="subCarousel" type="file" accept="image/*" multiple hidden>
+
+        <div class="modal-header">
+          <div class="modal-header-text">
+            <h2 id="modalTitle">Материал</h2>
+            <p id="modalMeta" class="modal-desc"></p>
+          </div>
+          <button type="button" class="modal-close ghost" id="closeBtnTop" aria-label="Закрыть">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-layout">
+            <div class="modal-previews">
+              <!-- Для РИЛС (ВИДЕО): СЛЕВА ОБЛОЖКА, СПРАВА ВИДЕО, загрузка плюсиком прямо на карточках -->
+              <div class="modal-equal-media" id="videoEqualPreviews">
+                <div class="modal-media-box">
+                  <span class="preview-label">Обложка</span>
+                  <div class="modal-media-card" id="coverCardBox">
+                    <img id="modalCoverPreview" alt="Обложка" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                    <button type="button" class="media-upload-plus" id="pickCoverBtn" title="Загрузить обложку (9:16)">+</button>
+                  </div>
+                </div>
+                <div class="modal-media-box">
+                  <span class="preview-label">Видео</span>
+                  <div class="modal-media-card" id="videoCardBox">
+                    <video id="modalVideoPreview" controls hidden></video>
+                    <button type="button" class="media-upload-plus" id="pickVideoBtn" title="Загрузить видео (9:16)">+</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Для КАРУСЕЛИ: сетка фото (перетаскивание меняет порядок) + плитка с плюсиком -->
+              <div id="carouselPreviewWrap" hidden>
+                <span class="preview-label" style="display:block;margin-bottom:6px;font-size:11px;font-weight:600;color:var(--foreground)">
+                  Карусель (<span id="carouselCountLabel">0</span>/15) — перетащите фото для смены порядка
+                </span>
+                <div class="carousel-modal-grid" id="carouselStrip"></div>
+              </div>
+
+              <!-- Под превью: мини-календарь и выбор дня + таймслота -->
+              <div class="modal-slot-picker" id="modalSlotPicker">
+                <div class="mini-cal-box" id="modalMiniMonthMount"></div>
+                <div class="modal-timeslot-grid" id="modalTimeslotGrid"></div>
+              </div>
+            </div>
+
+            <div class="copy-fields-scroll" id="copyFormRoot">
+              <div class="copy-section">
+                <div class="copy-section-head"><span class="badge">Общее</span></div>
+                <div class="field">
+                  <label data-for="base"></label>
+                  <p class="copy-hint" data-hint="base"></p>
+                  <textarea data-copy-field="base" rows="3"></textarea>
+                  <div class="counter" data-copy-counter="base"></div>
+                </div>
+                <div class="copy-subsection">
+                  <div class="copy-section-head"><span class="badge">Уникальные параметры и тег связки</span></div>
+                  <p class="copy-hint copy-hint-block">По умолчанию поля ниже заполняются данными из вашего профиля (можно дописать или изменить).</p>
+                  <div class="field">
+                    <label data-for="series_tag"></label>
+                    <p class="copy-hint" data-hint="series_tag"></p>
+                    <div class="series-tag-row">
+                      <select data-copy-field="series_tag"></select>
+                    </div>
+                    <div class="series-tag-creator">
+                      <input type="text" data-new-tag-name placeholder="НовыйТег (одно слово)" maxlength="24">
+                      <input type="color" data-new-tag-color value="#2dd4bf" title="Цвет тега">
+                      <button type="button" class="outline" data-add-series-tag>+ Создать тег</button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label data-for="tags"></label>
+                    <p class="copy-hint" data-hint="tags"></p>
+                    <textarea data-copy-field="tags" rows="2" placeholder="#тег1, тег2"></textarea>
+                  </div>
+                  <div class="field">
+                    <label data-for="instagram_collaborators"></label>
+                    <p class="copy-hint" data-hint="instagram_collaborators"></p>
+                    <input type="text" data-copy-field="instagram_collaborators" spellcheck="false" placeholder="user1, user2">
+                  </div>
+                  <div class="field">
+                    <label data-for="instagram_reel_tags"></label>
+                    <p class="copy-hint" data-hint="instagram_reel_tags"></p>
+                    <input type="text" data-copy-field="instagram_reel_tags" spellcheck="false" placeholder="brand, friend_name">
+                  </div>
+                  <div class="field">
+                    <label data-for="tiktok_mentions"></label>
+                    <p class="copy-hint" data-hint="tiktok_mentions"></p>
+                    <input type="text" data-copy-field="tiktok_mentions" spellcheck="false" placeholder="@user1, @user2">
+                  </div>
+                </div>
+              </div>
+
+              <p class="copy-network-intro">Тексты сетей свёрнуты: везде универсальный текст, пока не раскроете сеть и включите «Своё описание».</p>
+
+              <details class="copy-accordion" data-accordion="instagram">
+                <summary class="copy-accordion-summary">
+                  <span class="badge primary">Instagram</span>
+                  <span class="acc-summary" data-acc-summary="instagram">универсальный текст</span>
+                </summary>
+                <div class="acc-body">
+                  <label class="override-toggle">
+                    <input type="checkbox" data-copy-override="instagram">
+                    <span>Своё описание вместо общего</span>
+                  </label>
+                  <div class="override-panel" data-copy-override-panel="instagram" hidden>
+                    <div class="field">
+                      <label data-for="instagram"></label>
+                      <textarea data-copy-field="instagram" rows="3"></textarea>
+                      <div class="counter" data-copy-counter="instagram"></div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="copy-accordion" data-accordion="tiktok">
+                <summary class="copy-accordion-summary">
+                  <span class="badge">TikTok</span>
+                  <span class="acc-summary" data-acc-summary="tiktok">универсальный текст</span>
+                </summary>
+                <div class="acc-body">
+                  <label class="override-toggle">
+                    <input type="checkbox" data-copy-override="tiktok">
+                    <span>Своё описание вместо общего</span>
+                  </label>
+                  <div class="override-panel" data-copy-override-panel="tiktok" hidden>
+                    <div class="field">
+                      <label data-for="tiktok"></label>
+                      <textarea data-copy-field="tiktok" rows="3"></textarea>
+                      <div class="counter" data-copy-counter="tiktok"></div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="copy-accordion" data-accordion="youtube">
+                <summary class="copy-accordion-summary">
+                  <span class="badge">YouTube</span>
+                  <span class="acc-summary" data-acc-summary="youtube">универсальный текст</span>
+                </summary>
+                <div class="acc-body">
+                  <label class="override-toggle">
+                    <input type="checkbox" data-copy-override="youtube">
+                    <span>Своё название и/или описание</span>
+                  </label>
+                  <div class="override-panel" data-copy-override-panel="youtube" hidden>
+                    <div class="field">
+                      <label data-for="youtube_title"></label>
+                      <input type="text" data-copy-field="youtube_title" spellcheck="false">
+                      <div class="counter" data-copy-counter="youtube_title"></div>
+                    </div>
+                    <div class="field">
+                      <label data-for="youtube"></label>
+                      <textarea data-copy-field="youtube" rows="3"></textarea>
+                      <div class="counter" data-copy-counter="youtube"></div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="copy-accordion" data-accordion="vk">
+                <summary class="copy-accordion-summary">
+                  <span class="badge">VK Клипы</span>
+                  <span class="acc-summary" data-acc-summary="vk">универсальный текст</span>
+                </summary>
+                <div class="acc-body">
+                  <label class="override-toggle">
+                    <input type="checkbox" data-copy-override="vk">
+                    <span>Своё описание вместо общего</span>
+                  </label>
+                  <div class="override-panel" data-copy-override-panel="vk" hidden>
+                    <div class="field">
+                      <label data-for="vk"></label>
+                      <textarea data-copy-field="vk" rows="3"></textarea>
+                      <div class="counter" data-copy-counter="vk"></div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </div>
+          <p class="error" id="modalErr"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="ghost" id="deleteSubBtn" style="color:var(--destructive)">Удалить</button>
+          <button type="button" class="outline" id="unscheduleBtn" hidden>Убрать из расписания</button>
+          <span class="footer-spacer"></span>
+          <button type="button" class="outline" id="duplicateBtn">Создать дубликат</button>
+          <button type="button" class="primary" id="saveBtn">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Модалка ЛК Автора -->
+  <div class="modal-backdrop" id="profileModal">
+    <div class="modal modal-wide" style="max-width:680px" role="dialog" aria-labelledby="profileModalTitle">
+      <div class="modal-header">
+        <div class="modal-header-text">
+          <h2 id="profileModalTitle">Личный кабинет автора</h2>
+          <p class="modal-desc">Ники соцсетей, облака тегов/отметок для автопостинга и круглое ЧБ-фото для карточек (до 100 КБ)</p>
+        </div>
+        <button type="button" class="modal-close ghost" id="closeProfileTop" aria-label="Закрыть">×</button>
+      </div>
+      <div class="modal-body" style="overflow-y:auto">
+        <div class="copy-section">
+          <div class="copy-section-head"><span class="badge primary">Фото автора (ЧБ в кружочке, макс. 100 КБ)</span></div>
+          <div class="avatar-crop-box">
+            <div class="avatar-crop-stage">
+              <canvas id="avatarCropCanvas" class="avatar-crop-canvas" width="240" height="240" title="Потяните мышкой, чтобы сдвинуть кадр; колёсико — масштаб"></canvas>
+            </div>
+            <div style="flex:1;min-width:220px">
+              <div class="field" style="margin-bottom:8px">
+                <label for="profAvatarInput">Загрузить фото (любого размера — само сожмётся ≤ 100 КБ)</label>
+                <input type="file" id="profAvatarInput" accept="image/*">
+              </div>
+              <div class="avatar-crop-controls" id="avatarCropControls" hidden>
+                <label for="avatarZoomRange" style="margin:0;font-size:11px;color:var(--muted-foreground)">Масштаб кадра</label>
+                <input type="range" id="avatarZoomRange" min="1" max="3.5" step="0.02" value="1">
+                <button type="button" class="outline" id="avatarResetCropBtn" style="padding:3px 8px;font-size:11px">Сброс</button>
+              </div>
+              <p class="copy-hint" id="avatarSizeInfo">Потяните фото мышкой внутри круга для кадрирования. Отображается в ЧБ в правом верхнем углу карточек.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="copy-section">
+          <div class="copy-section-head"><span class="badge">Имя и ники в соцсетях</span></div>
+          <div class="profile-grid-2">
+            <div class="field">
+              <label for="profFirstName">Имя</label>
+              <input type="text" id="profFirstName" placeholder="Вова">
+            </div>
+            <div class="field">
+              <label for="profLastName">Фамилия</label>
+              <input type="text" id="profLastName" placeholder="Иванов">
+            </div>
+          </div>
+          <div class="profile-grid-2">
+            <div class="field">
+              <label for="profIgHandle">Instagram ник</label>
+              <input type="text" id="profIgHandle" placeholder="@username">
+            </div>
+            <div class="field">
+              <label for="profTtHandle">TikTok ник</label>
+              <input type="text" id="profTtHandle" placeholder="@username">
+            </div>
+            <div class="field">
+              <label for="profYtHandle">YouTube канал / ник</label>
+              <input type="text" id="profYtHandle" placeholder="@channel">
+            </div>
+            <div class="field">
+              <label for="profVkHandle">VK Клипы / сообщество</label>
+              <input type="text" id="profVkHandle" placeholder="@vk_club">
+            </div>
+            <div class="field">
+              <label for="profTgHandle">Telegram ник / канал</label>
+              <input type="text" id="profTgHandle" placeholder="@telegram">
+            </div>
+          </div>
+        </div>
+
+        <div class="copy-section">
+          <div class="copy-section-head"><span class="badge">Облака для автопостинга</span></div>
+          <div class="field">
+            <label for="profTagsCloud">Облако хэштегов (через запятую)</label>
+            <p class="copy-hint">Автоматически вставляется в хэштеги каждой вашей карточки.</p>
+            <textarea id="profTagsCloud" rows="2" placeholder="#рилс, #обзор, #тренды"></textarea>
+          </div>
+          <div class="field">
+            <label for="profIgMentions">Облако отметок в Instagram (через запятую или через @)</label>
+            <p class="copy-hint">Автоматически вставляется в отметки на рилсе/карусели Instagram.</p>
+            <textarea id="profIgMentions" rows="2" placeholder="@partner_one, brand_two"></textarea>
+          </div>
+          <div class="field">
+            <label for="profTtMentions">Облако отметок в TikTok (через @ или через запятую)</label>
+            <p class="copy-hint">Автоматически вставляется в отметки TikTok.</p>
+            <textarea id="profTtMentions" rows="2" placeholder="@friend_tt, creator_two"></textarea>
+          </div>
+        </div>
+        <p class="error" id="profileErr"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="primary" id="saveProfileBtn">Сохранить профиль</button>
+        <span class="footer-spacer"></span>
+        <button type="button" class="ghost" id="closeProfileBtn">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/api.js"></script>
+  <script src="/static/copy-fields.js"></script>
+  <script src="/static/week-planner.js"></script>
+  <script>
+    let me, limits, poolItems = [], planner, pendingAvatarBlob = null;
+    /** Черновик новой карточки (пока не нажали Сохранить — в БД не существует). */
+    let draftNewState = null;
+    /** Текущий выбранный слот в модалке (YYYY-MM-DDTHH:00 или ""). */
+    let modalScheduledAt = "";
+    let modalSlotPart = 1;
+    let modalMediaKind = "video";
+    let monthCountsCache = {};
+
+    /**
+     * Элементы карусели в модалке:
+     * { kind: "existing", origIndex: number, url: string } | { kind: "new", file: File, url: string }
+     */
+    let carouselItems = [];
+    let dragSlideIdx = null;
+
+    const modal = document.getElementById("modal");
+    const modalPanel = document.getElementById("modalPanel");
+    const copyRoot = document.getElementById("copyFormRoot");
+    const profileModal = document.getElementById("profileModal");
+    const STATUS_RU = WeekPlanner.DEFAULT_STATUS;
+    const SLOT_HOURS = [9, 11, 13, 15, 17, 19];
+    const SLOT_LABELS = ["09–11", "11–13", "13–15", "15–17", "17–19", "19–21"];
+
+    for (const key of CopyFields.keys) {
+      const lab = copyRoot.querySelector(`[data-for="${key}"]`);
+      if (lab) lab.textContent = CopyFields.labels[key] || key;
+      const hint = copyRoot.querySelector(`[data-hint="${key}"]`);
+      if (hint && CopyFields.hints[key]) hint.textContent = CopyFields.hints[key];
+    }
+    CopyFields.bindOverrides(copyRoot, () => {
+      if (planner) planner.load();
+      refreshPool();
+    });
+
+    async function deleteCardItem(item) {
+      if (!WeekPlanner.canDeleteItem(item, me)) {
+        alert("Эту карточку нельзя удалить (чужая или зафиксирована админом).");
+        return;
+      }
+      try {
+        await api(`/api/submissions/${item.id}`, { method: "DELETE" });
+        modal.classList.remove("open");
+        await refreshAll();
+      } catch (err) {
+        alert(err.message || String(err));
+      }
+    }
+
+    const cardOpts = () => ({
+      me,
+      statusLabels: STATUS_RU,
+      onlyMineInPool: true,
+      canDrag: (item) => WeekPlanner.defaultCanDrag(item, me),
+      onOpen: (id) => openSub(id),
+      onDelete: (item) => deleteCardItem(item),
+      onDropToPool: async (id) => {
+        const sub = findSub(id);
+        if (sub) await planner.clearSlot(sub);
+      },
+    });
+
+    function syncHeaderUser() {
+      document.getElementById("hello").textContent = me.display_name || "Профиль";
+      const av = document.getElementById("headerAvatar");
+      if (me.avatar_url) {
+        av.src = `${me.avatar_url}?t=${Date.now()}`;
+        av.hidden = false;
+      } else {
+        av.hidden = true;
+      }
+    }
+
+    async function init() {
+      me = await api("/api/me");
+      limits = await api("/api/limits");
+      const tags = await api("/api/series-tags");
+      CopyFields.setSeriesTags(tags);
+      CopyFields.populateSeriesSelect(copyRoot);
+      syncHeaderUser();
+
+      planner = WeekPlanner.init({
+        mount: document.getElementById("weekMount"),
+        labelEl: document.getElementById("weekLabel"),
+        prevBtn: document.getElementById("prev"),
+        nextBtn: document.getElementById("next"),
+        miniMonthMount: document.getElementById("miniMonthMount"),
+        me,
+        statusLabels: STATUS_RU,
+        onOpen: (id) => openSub(id),
+        onCreate: async (key, slotPart = 1, mediaKind = "video") => {
+          openNewDraftModal(key, slotPart, mediaKind);
+        },
+        onMoved: () => refreshAll(),
+        resolveItem: (id) => poolItems.find((x) => x.id === id),
+        canDrag: (item) => WeekPlanner.defaultCanDrag(item, me),
+      });
+      await refreshAll();
+    }
+
+    async function refreshPool() {
+      poolItems = await api("/api/submissions/pool");
+      WeekPlanner.renderAuthorPool(document.getElementById("poolMount"), poolItems, cardOpts());
+    }
+
+    async function refreshAll() {
+      await refreshPool();
+      await planner.load();
+    }
+
+    function findSub(id) {
+      return poolItems.find((x) => x.id === id) || planner.getItems().find((x) => x.id === id);
+    }
+
+    function setReadonly(readonly) {
+      modalPanel.classList.toggle("readonly", readonly);
+      for (const id of ["subVideo", "subCover", "subCarousel", "saveBtn", "pickCoverBtn", "pickVideoBtn"]) {
+        const el = document.getElementById(id);
+        if (el) el.disabled = readonly;
+      }
+      copyRoot.querySelectorAll("input, textarea, select, button").forEach((el) => {
+        if (
+          el.hasAttribute("data-copy-field") ||
+          el.hasAttribute("data-copy-override") ||
+          el.hasAttribute("data-add-series-tag") ||
+          el.hasAttribute("data-new-tag-name") ||
+          el.hasAttribute("data-new-tag-color")
+        ) {
+          el.disabled = readonly;
+        }
+      });
+    }
+
+    /* --- Загрузка плюсиком прямо на карточках превью --- */
+    document.getElementById("pickCoverBtn").onclick = () => document.getElementById("subCover").click();
+    document.getElementById("pickVideoBtn").onclick = () => document.getElementById("subVideo").click();
+
+    document.getElementById("subCover").addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      const coverImg = document.getElementById("modalCoverPreview");
+      coverImg.src = URL.createObjectURL(f);
+      coverImg.hidden = false;
+      document.getElementById("coverCardBox").classList.add("has-media");
+    });
+
+    document.getElementById("subVideo").addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      const videoEl = document.getElementById("modalVideoPreview");
+      videoEl.src = URL.createObjectURL(f);
+      videoEl.hidden = false;
+      document.getElementById("videoCardBox").classList.add("has-media");
+    });
+
+    /* --- Карусель: добавление без сжатия + перетаскивание слайдов для смены порядка --- */
+    function renderCarouselModalStrip(readonly = false) {
+      const cStrip = document.getElementById("carouselStrip");
+      document.getElementById("carouselCountLabel").textContent = String(carouselItems.length);
+      cStrip.innerHTML = "";
+
+      carouselItems.forEach((item, idx) => {
+        const tile = document.createElement("div");
+        tile.className = "carousel-slide-item";
+        tile.draggable = !readonly;
+        tile.dataset.idx = String(idx);
+        tile.innerHTML = `
+          <img src="${item.url}" alt="Слайд ${idx + 1}">
+          <span class="carousel-slide-index">${idx + 1}</span>
+          ${
+            !readonly
+              ? `<button type="button" class="carousel-slide-remove" title="Убрать слайд">×</button>`
+              : ""
+          }`;
+
+        if (!readonly) {
+          const rmBtn = tile.querySelector(".carousel-slide-remove");
+          if (rmBtn) {
+            rmBtn.onclick = (ev) => {
+              ev.stopPropagation();
+              carouselItems.splice(idx, 1);
+              renderCarouselModalStrip(false);
+            };
+          }
+          tile.addEventListener("dragstart", (ev) => {
+            dragSlideIdx = idx;
+            tile.classList.add("dragging");
+            ev.dataTransfer.effectAllowed = "move";
+          });
+          tile.addEventListener("dragend", () => {
+            dragSlideIdx = null;
+            tile.classList.remove("dragging");
+          });
+          tile.addEventListener("dragover", (ev) => {
+            ev.preventDefault();
+          });
+          tile.addEventListener("drop", (ev) => {
+            ev.preventDefault();
+            if (dragSlideIdx === null || dragSlideIdx === idx) return;
+            const moved = carouselItems.splice(dragSlideIdx, 1)[0];
+            carouselItems.splice(idx, 0, moved);
+            dragSlideIdx = null;
+            renderCarouselModalStrip(false);
+          });
+        }
+        cStrip.appendChild(tile);
+      });
+
+      if (!readonly && carouselItems.length < 15) {
+        const addBtn = document.createElement("button");
+        addBtn.type = "button";
+        addBtn.className = "carousel-add-tile";
+        addBtn.title = "Добавить фотографии в карусель (до 15 шт.)";
+        addBtn.innerHTML = `+<span>Фото</span>`;
+        addBtn.onclick = () => document.getElementById("subCarousel").click();
+        cStrip.appendChild(addBtn);
+      }
+    }
+
+    document.getElementById("subCarousel").addEventListener("change", (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      const hasNewBefore = carouselItems.some((x) => x.kind === "new");
+      if (!hasNewBefore) {
+        carouselItems = [];
+      }
+      for (const f of files) {
+        if (carouselItems.length >= 15) break;
+        carouselItems.push({
+          kind: "new",
+          file: f,
+          url: URL.createObjectURL(f),
+        });
+      }
+      renderCarouselModalStrip(false);
+    });
+
+    /* --- Мини-календарь и выбор дня + таймслота прямо под превью в модалке --- */
+    async function renderModalSlotPicker(readonly = false) {
+      const calMount = document.getElementById("modalMiniMonthMount");
+      const slotGrid = document.getElementById("modalTimeslotGrid");
+      const baseDate = modalScheduledAt ? new Date(modalScheduledAt) : new Date();
+      const y = baseDate.getFullYear();
+      const m = baseDate.getMonth() + 1;
+      const ymKey = `${y}-${m}`;
+      if (!monthCountsCache[ymKey]) {
+        try {
+          const res = await api(`/api/calendar/month?year=${y}&month=${m}`);
+          monthCountsCache[ymKey] = res.counts || {};
+        } catch (_) {
+          monthCountsCache[ymKey] = {};
+        }
+      }
+      const selectedDateIso = modalScheduledAt ? modalScheduledAt.slice(0, 10) : WeekPlanner.isoDate(baseDate);
+      const selectedHour = modalScheduledAt ? parseInt(modalScheduledAt.slice(11, 13), 10) : null;
+
+      WeekPlanner.renderMiniMonth(
+        calMount,
+        y,
+        m,
+        monthCountsCache[ymKey],
+        WeekPlanner.mondayOf(baseDate),
+        (clickedDate, past) => {
+          if (readonly) return;
+          if (past) {
+            alert("Нельзя ставить публикацию на прошедшую дату.");
+            return;
+          }
+          const wd = (clickedDate.getDay() + 6) % 7;
+          if (wd > 4) {
+            alert("Публикации ставятся на будние дни (Пн–Пт).");
+            return;
+          }
+          const dIso = WeekPlanner.isoDate(clickedDate);
+          const hr = selectedHour && SLOT_HOURS.includes(selectedHour) ? selectedHour : 9;
+          modalScheduledAt = `${dIso}T${String(hr).padStart(2, "0")}:00`;
+          updateModalMetaLabel();
+          renderModalSlotPicker(readonly);
+        }
+      );
+
+      calMount.querySelectorAll(".mini-cal-day").forEach((btn) => {
+        if (btn.textContent === String(parseInt(selectedDateIso.slice(8, 10), 10)) && modalScheduledAt) {
+          btn.classList.add("selected-day");
+        }
+      });
+
+      slotGrid.innerHTML = "";
+      SLOT_HOURS.forEach((hr, idx) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "modal-timeslot-btn" + (modalScheduledAt && selectedHour === hr ? " active" : "");
+        b.textContent = SLOT_LABELS[idx];
+        b.disabled = readonly || WeekPlanner.isPastDateIso(selectedDateIso);
+        b.onclick = () => {
+          let dIso = selectedDateIso;
+          if (WeekPlanner.isPastDateIso(dIso)) {
+            dIso = WeekPlanner.todayIso();
+          }
+          const dObj = new Date(dIso + "T12:00:00");
+          const wd = (dObj.getDay() + 6) % 7;
+          if (wd > 4) {
+            dIso = WeekPlanner.isoDate(WeekPlanner.mondayOf(dObj));
+          }
+          modalScheduledAt = `${dIso}T${String(hr).padStart(2, "0")}:00`;
+          updateModalMetaLabel();
+          renderModalSlotPicker(readonly);
+        };
+        slotGrid.appendChild(b);
+      });
+
+      const poolBtn = document.createElement("button");
+      poolBtn.type = "button";
+      poolBtn.className = "modal-timeslot-btn modal-timeslot-pool-btn" + (!modalScheduledAt ? " active" : "");
+      poolBtn.textContent = "В пуле (без слота расписания)";
+      poolBtn.disabled = readonly;
+      poolBtn.onclick = () => {
+        modalScheduledAt = "";
+        updateModalMetaLabel();
+        renderModalSlotPicker(readonly);
+      };
+      slotGrid.appendChild(poolBtn);
+    }
+
+    function updateModalMetaLabel() {
+      const kindLabel = modalMediaKind === "carousel" ? "Карусель" : "Рилс";
+      const slotInfo = modalScheduledAt
+        ? `${fmtLocal(modalScheduledAt)} (слот ${modalSlotPart})`
+        : "В пуле (не в расписании)";
+      document.getElementById("modalMeta").textContent = `${me.display_name || "Автор"} · ${kindLabel} · ${slotInfo}`;
+    }
+
+    function setPreviewForModal(sub, readonly) {
+      const isCarousel = modalMediaKind === "carousel";
+      document.getElementById("videoEqualPreviews").hidden = isCarousel;
+      document.getElementById("carouselPreviewWrap").hidden = !isCarousel;
+
+      if (isCarousel) {
+        const slides = (sub && sub.carousel_files) || [];
+        carouselItems = slides.map((_, idx) => ({
+          kind: "existing",
+          origIndex: idx,
+          url: `/api/submissions/${sub.id}/carousel/${idx}?thumb=1&t=${encodeURIComponent(sub.updated_at || Date.now())}`,
+        }));
+        renderCarouselModalStrip(readonly);
+        return;
+      }
+
+      const coverImg = document.getElementById("modalCoverPreview");
+      const coverBox = document.getElementById("coverCardBox");
+      if (sub && sub.cover_name) {
+        coverImg.onload = () => {
+          coverImg.hidden = false;
+          coverBox.classList.add("has-media");
+        };
+        coverImg.onerror = () => {
+          coverImg.hidden = true;
+          coverBox.classList.remove("has-media");
+        };
+        coverImg.src = `/api/submissions/${sub.id}/cover?thumb=0&t=${Date.now()}`;
+      } else {
+        coverImg.hidden = true;
+        coverImg.removeAttribute("src");
+        coverBox.classList.remove("has-media");
+      }
+
+      const videoEl = document.getElementById("modalVideoPreview");
+      const videoBox = document.getElementById("videoCardBox");
+      const clearVideo = () => {
+        videoEl.pause();
+        videoEl.removeAttribute("src");
+        videoEl.load();
+        videoEl.hidden = true;
+        videoBox.classList.remove("has-media");
+      };
+      videoEl.onerror = clearVideo;
+      videoEl.onloadeddata = () => {
+        videoEl.hidden = false;
+        videoBox.classList.add("has-media");
+      };
+      if (sub && sub.video_name) {
+        videoEl.hidden = true;
+        videoEl.src = `/api/submissions/${sub.id}/video?t=${Date.now()}`;
+        videoEl.load();
+      } else {
+        clearVideo();
+      }
+    }
+
+    /** Открывает НОВУЮ карточку (не создавая её в БД, пока не нажата кнопка «Сохранить»). */
+    function openNewDraftModal(scheduledAt = "", slotPart = 1, mediaKind = "video") {
+      draftNewState = { scheduledAt, slotPart, mediaKind };
+      modalScheduledAt = scheduledAt || "";
+      modalSlotPart = slotPart || 1;
+      modalMediaKind = mediaKind || "video";
+      carouselItems = [];
+
+      document.getElementById("subId").value = "";
+      document.getElementById("modalTitle").textContent =
+        mediaKind === "carousel" ? "Новая карусель" : "Новый рилс";
+      updateModalMetaLabel();
+
+      CopyFields.writeForm(copyRoot, {}, me);
+      CopyFields.bindCounters(copyRoot, limits);
+      document.getElementById("modalErr").textContent = "";
+      document.getElementById("subVideo").value = "";
+      document.getElementById("subCover").value = "";
+      document.getElementById("subCarousel").value = "";
+
+      setPreviewForModal(null, false);
+      setReadonly(false);
+      renderModalSlotPicker(false);
+
+      document.getElementById("unscheduleBtn").hidden = true;
+      document.getElementById("deleteSubBtn").hidden = true;
+      document.getElementById("duplicateBtn").hidden = true;
+
+      modal.classList.add("open");
+    }
+
+    async function openSub(id) {
+      const sub = findSub(id);
+      if (!sub) return;
+      draftNewState = null;
+      modalScheduledAt = sub.scheduled_at || "";
+      modalSlotPart = sub.slot_part || 1;
+      modalMediaKind = sub.media_kind || "video";
+
+      const locked = WeekPlanner.isLocked(sub);
+      const readonly = (!sub.is_mine || locked) && me.role !== "admin";
+      const inSlot = !!WeekPlanner.slotForItem(sub);
+      document.getElementById("subId").value = id;
+      const d = sub.descriptions || {};
+      const kindPrefix = sub.media_kind === "carousel" ? "Карусель · " : "Рилс · ";
+      document.getElementById("modalTitle").textContent =
+        kindPrefix + ((d.base || "").trim().slice(0, 72) || "Материал");
+      document.getElementById("modalMeta").textContent =
+        `${sub.author_name || me.display_name || "—"} · ${
+          inSlot ? `${fmtLocal(sub.scheduled_at)} (слот ${sub.slot_part || 1})` : "В пуле (не в расписании)"
+        }${locked ? " · Слот подтверждён админом" : ""}`;
+
+      CopyFields.writeForm(copyRoot, d, sub.is_mine ? me : null);
+      CopyFields.bindCounters(copyRoot, limits);
+      document.getElementById("modalErr").textContent = "";
+      document.getElementById("subVideo").value = "";
+      document.getElementById("subCover").value = "";
+      document.getElementById("subCarousel").value = "";
+
+      setPreviewForModal(sub, readonly);
+      setReadonly(readonly);
+      renderModalSlotPicker(readonly);
+
+      document.getElementById("unscheduleBtn").hidden = !WeekPlanner.canClearSlot(sub, me);
+      document.getElementById("deleteSubBtn").hidden = !WeekPlanner.canDeleteItem(sub, me);
+      document.getElementById("duplicateBtn").hidden = !(sub.is_mine || me.role === "admin");
+
+      modal.classList.add("open");
+    }
+
+    document.getElementById("saveBtn").onclick = async () => {
+      let id = document.getElementById("subId").value;
+      const err = document.getElementById("modalErr");
+      const saveBtn = document.getElementById("saveBtn");
+      err.textContent = "";
+      saveBtn.disabled = true;
+      try {
+        const descriptions = CopyFields.readForm(copyRoot);
+
+        if (!id && draftNewState) {
+          const createFd = new FormData();
+          createFd.set("scheduled_at", modalScheduledAt || "");
+          createFd.set("slot_part", String(modalSlotPart || 1));
+          createFd.set("media_kind", modalMediaKind || "video");
+          createFd.set("descriptions_json", JSON.stringify(descriptions));
+          const created = await apiForm("/api/submissions", createFd);
+          id = created.id;
+          draftNewState = null;
+        } else {
+          const putBody = {
+            descriptions,
+            scheduled_at: modalScheduledAt || "",
+            slot_part: modalSlotPart || 1,
+          };
+          const onlyExistingReordered =
+            modalMediaKind === "carousel" &&
+            carouselItems.length > 0 &&
+            carouselItems.every((x) => x.kind === "existing");
+          if (onlyExistingReordered) {
+            putBody.carousel_order = carouselItems.map((x) => x.origIndex);
+          }
+          await api(`/api/submissions/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(putBody),
+          });
+        }
+
+        const fd = new FormData();
+        const v = document.getElementById("subVideo").files[0];
+        const c = document.getElementById("subCover").files[0];
+        const newCarFiles = carouselItems.filter((x) => x.kind === "new").map((x) => x.file);
+        if (v) fd.append("video", v);
+        if (c) fd.append("cover", c);
+        newCarFiles.forEach((file) => fd.append("carousel", file, file.name));
+        if (v || c || newCarFiles.length) {
+          await apiForm(`/api/submissions/${id}/files`, fd);
+        }
+
+        monthCountsCache = {};
+        await refreshAll();
+        modal.classList.remove("open");
+      } catch (ex) {
+        showError(err, ex);
+      } finally {
+        saveBtn.disabled = false;
+      }
+    };
+
+    document.getElementById("duplicateBtn").onclick = async () => {
+      const id = document.getElementById("subId").value;
+      if (!id) return;
+      const err = document.getElementById("modalErr");
+      err.textContent = "";
+      try {
+        await api(`/api/submissions/${id}/duplicate`, { method: "POST" });
+        await refreshAll();
+        modal.classList.remove("open");
+      } catch (ex) { showError(err, ex); }
+    };
+
+    document.getElementById("unscheduleBtn").onclick = async () => {
+      const id = document.getElementById("subId").value;
+      const sub = findSub(id);
+      if (!sub) return;
+      monthCountsCache = {};
+      await planner.clearSlot(sub);
+      modal.classList.remove("open");
+    };
+
+    document.getElementById("deleteSubBtn").onclick = () => {
+      const id = document.getElementById("subId").value;
+      const sub = findSub(id);
+      if (!sub) return;
+      WeekPlanner.confirmDeleteModal(sub, deleteCardItem);
+    };
+
+    document.getElementById("newPoolCardBtn").onclick = () => {
+      openNewDraftModal("", 1, "video");
+    };
+
+    document.getElementById("newPoolCarouselBtn").onclick = () => {
+      openNewDraftModal("", 2, "carousel");
+    };
+
+    /* --- Профиль автора: интерактивное круглое ЧБ-кадрирование + авто-сжатие <= 100 КБ --- */
+    const avatarCanvas = document.getElementById("avatarCropCanvas");
+    const avatarCtx = avatarCanvas.getContext("2d");
+    const avatarZoomRange = document.getElementById("avatarZoomRange");
+    const avatarCropControls = document.getElementById("avatarCropControls");
+    let cropSourceImg = null;
+    let cropState = { zoom: 1, panX: 0, panY: 0, dragging: false, startX: 0, startY: 0 };
+    let compressTimer = null;
+
+    function drawAvatarPlaceholder(url) {
+      cropSourceImg = null;
+      avatarCropControls.hidden = true;
+      avatarCtx.clearRect(0, 0, 240, 240);
+      if (!url) {
+        avatarCtx.fillStyle = "#2b2b2b";
+        avatarCtx.beginPath();
+        avatarCtx.arc(120, 120, 120, 0, Math.PI * 2);
+        avatarCtx.fill();
+        return;
+      }
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        cropSourceImg = img;
+        cropState = { zoom: 1, panX: 0, panY: 0, dragging: false, startX: 0, startY: 0 };
+        avatarZoomRange.value = "1";
+        avatarCropControls.hidden = false;
+        renderCircularBwToCanvas();
+      };
+      img.src = `${url}?t=${Date.now()}`;
+    }
+
+    function clampCropPan() {
+      if (!cropSourceImg) return;
+      const size = 240;
+      const baseScale = Math.max(size / cropSourceImg.width, size / cropSourceImg.height);
+      const scale = baseScale * cropState.zoom;
+      const drawW = cropSourceImg.width * scale;
+      const drawH = cropSourceImg.height * scale;
+      const maxX = Math.max(0, (drawW - size) / 2);
+      const maxY = Math.max(0, (drawH - size) / 2);
+      cropState.panX = Math.max(-maxX, Math.min(maxX, cropState.panX));
+      cropState.panY = Math.max(-maxY, Math.min(maxY, cropState.panY));
+    }
+
+    function renderCircularBwToCanvas() {
+      if (!cropSourceImg) return;
+      const size = 240;
+      clampCropPan();
+      avatarCtx.clearRect(0, 0, size, size);
+      avatarCtx.save();
+      avatarCtx.beginPath();
+      avatarCtx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      avatarCtx.closePath();
+      avatarCtx.clip();
+
+      const baseScale = Math.max(size / cropSourceImg.width, size / cropSourceImg.height);
+      const scale = baseScale * cropState.zoom;
+      const drawW = cropSourceImg.width * scale;
+      const drawH = cropSourceImg.height * scale;
+      const dx = (size - drawW) / 2 + cropState.panX;
+      const dy = (size - drawH) / 2 + cropState.panY;
+
+      avatarCtx.drawImage(cropSourceImg, dx, dy, drawW, drawH);
+
+      const imgData = avatarCtx.getImageData(0, 0, size, size);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+        d[i] = gray;
+        d[i + 1] = gray;
+        d[i + 2] = gray;
+      }
+      avatarCtx.putImageData(imgData, 0, 0);
+      avatarCtx.restore();
+    }
+
+    async function canvasToCompressedBlob(canvas, maxBytes = 100 * 1024) {
+      for (const q of [0.88, 0.76, 0.64, 0.5, 0.36, 0.25]) {
+        const blob = await new Promise((res) => canvas.toBlob(res, "image/webp", q));
+        if (blob && blob.size <= maxBytes) return blob;
+      }
+      for (const q of [0.7, 0.5, 0.35]) {
+        const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", q));
+        if (blob && blob.size <= maxBytes) return blob;
+      }
+      return new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.25));
+    }
+
+    function scheduleAvatarCompress() {
+      if (compressTimer) clearTimeout(compressTimer);
+      compressTimer = setTimeout(async () => {
+        if (!cropSourceImg) return;
+        pendingAvatarBlob = await canvasToCompressedBlob(avatarCanvas, 100 * 1024);
+        const kb = pendingAvatarBlob ? (pendingAvatarBlob.size / 1024).toFixed(1) : "?";
+        document.getElementById("avatarSizeInfo").textContent = `Кадр готов: круглое ЧБ фото (${kb} КБ ≤ 100 КБ). Потяните мышкой для сдвига кадра.`;
+      }, 90);
+    }
+
+    avatarCanvas.addEventListener("pointerdown", (e) => {
+      if (!cropSourceImg) return;
+      cropState.dragging = true;
+      cropState.startX = e.clientX - cropState.panX;
+      cropState.startY = e.clientY - cropState.panY;
+      avatarCanvas.setPointerCapture(e.pointerId);
+    });
+    avatarCanvas.addEventListener("pointermove", (e) => {
+      if (!cropState.dragging || !cropSourceImg) return;
+      cropState.panX = e.clientX - cropState.startX;
+      cropState.panY = e.clientY - cropState.startY;
+      renderCircularBwToCanvas();
+      scheduleAvatarCompress();
+    });
+    avatarCanvas.addEventListener("pointerup", () => {
+      cropState.dragging = false;
+    });
+    avatarCanvas.addEventListener(
+      "wheel",
+      (e) => {
+        if (!cropSourceImg) return;
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.1 : -0.1;
+        cropState.zoom = Math.max(1, Math.min(3.5, cropState.zoom + delta));
+        avatarZoomRange.value = String(cropState.zoom);
+        renderCircularBwToCanvas();
+        scheduleAvatarCompress();
+      },
+      { passive: false }
+    );
+
+    avatarZoomRange.addEventListener("input", () => {
+      if (!cropSourceImg) return;
+      cropState.zoom = parseFloat(avatarZoomRange.value) || 1;
+      renderCircularBwToCanvas();
+      scheduleAvatarCompress();
+    });
+
+    document.getElementById("avatarResetCropBtn").onclick = () => {
+      if (!cropSourceImg) return;
+      cropState.zoom = 1;
+      cropState.panX = 0;
+      cropState.panY = 0;
+      avatarZoomRange.value = "1";
+      renderCircularBwToCanvas();
+      scheduleAvatarCompress();
+    };
+
+    document.getElementById("profAvatarInput").addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        cropSourceImg = img;
+        cropState = { zoom: 1, panX: 0, panY: 0, dragging: false, startX: 0, startY: 0 };
+        avatarZoomRange.value = "1";
+        avatarCropControls.hidden = false;
+        renderCircularBwToCanvas();
+        scheduleAvatarCompress();
+      };
+      img.src = url;
+    });
+
+    function openProfileModal() {
+      pendingAvatarBlob = null;
+      const p = (me && me.profile) || {};
+      const dispParts = (me.display_name || "").trim().split(/\s+/);
+      document.getElementById("profFirstName").value = p.first_name || dispParts[0] || "";
+      document.getElementById("profLastName").value = p.last_name || dispParts.slice(1).join(" ") || "";
+      document.getElementById("profIgHandle").value = p.instagram_handle || "";
+      document.getElementById("profTtHandle").value = p.tiktok_handle || "";
+      document.getElementById("profYtHandle").value = p.youtube_handle || "";
+      document.getElementById("profVkHandle").value = p.vk_handle || "";
+      document.getElementById("profTgHandle").value = p.telegram_handle || "";
+      document.getElementById("profTagsCloud").value = p.tags_cloud || "";
+      document.getElementById("profIgMentions").value = p.ig_mentions_cloud || "";
+      document.getElementById("profTtMentions").value = p.tt_mentions_cloud || "";
+      document.getElementById("profileErr").textContent = "";
+      document.getElementById("profAvatarInput").value = "";
+      drawAvatarPlaceholder(me.avatar_url);
+      profileModal.classList.add("open");
+    }
+
+    document.getElementById("openProfileBtn").onclick = openProfileModal;
+    const closeProfileModal = () => profileModal.classList.remove("open");
+    document.getElementById("closeProfileBtn").onclick = closeProfileModal;
+    document.getElementById("closeProfileTop").onclick = closeProfileModal;
+    profileModal.addEventListener("click", (e) => { if (e.target === profileModal) closeProfileModal(); });
+
+    document.getElementById("saveProfileBtn").onclick = async () => {
+      const err = document.getElementById("profileErr");
+      err.textContent = "";
+      try {
+        const firstName = document.getElementById("profFirstName").value.trim();
+        const lastName = document.getElementById("profLastName").value.trim();
+        const combinedName = `${firstName} ${lastName}`.trim() || me.display_name || "Автор";
+        me = await api("/api/me/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            display_name: combinedName,
+            profile: {
+              first_name: firstName,
+              last_name: lastName,
+              instagram_handle: document.getElementById("profIgHandle").value,
+              tiktok_handle: document.getElementById("profTtHandle").value,
+              youtube_handle: document.getElementById("profYtHandle").value,
+              vk_handle: document.getElementById("profVkHandle").value,
+              telegram_handle: document.getElementById("profTgHandle").value,
+              tags_cloud: document.getElementById("profTagsCloud").value,
+              ig_mentions_cloud: document.getElementById("profIgMentions").value,
+              tt_mentions_cloud: document.getElementById("profTtMentions").value,
+            },
+          }),
+        });
+        if (pendingAvatarBlob) {
+          const fd = new FormData();
+          fd.append("avatar", pendingAvatarBlob, "avatar.webp");
+          me = await apiForm("/api/me/avatar", fd);
+        }
+        syncHeaderUser();
+        await refreshAll();
+        closeProfileModal();
+      } catch (ex) {
+        showError(err, ex);
+      }
+    };
+
+    const closeModal = () => {
+      draftNewState = null;
+      modal.classList.remove("open");
+    };
+    document.getElementById("closeBtnTop").onclick = closeModal;
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+    document.getElementById("logout").onclick = async () => {
+      await api("/api/logout", { method: "POST" });
+      location.href = "/login.html";
+    };
+
+    init().catch(() => location.href = "/login.html");
+  </script>
+</body>
+</html>

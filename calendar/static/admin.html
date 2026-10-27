@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Админ — календарь</title>
+  <link rel="stylesheet" href="/static/common.css">
+</head>
+<body>
+  <header class="top-dashboard-bar">
+    <!-- 1. Слева первый: мини-календарь на месяц + переключение недель -->
+    <div class="mini-cal-wrap">
+      <div class="mini-cal-box" id="miniMonthMount" title="Нажмите на день, чтобы перейти к неделе"></div>
+      <div class="mini-cal-week-nav">
+        <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
+        <strong id="weekLabel"></strong>
+        <button type="button" id="next" aria-label="Следующая неделя">→</button>
+      </div>
+    </div>
+
+    <!-- 2. Квадратные во всю высоту строки кнопки режимов -->
+    <div class="admin-square-tabs">
+      <button type="button" class="admin-square-tab-btn active" id="tabCalendarBtn">
+        <span>Календарь</span>
+        <span class="tab-sub">расписание</span>
+      </button>
+      <button type="button" class="admin-square-tab-btn" id="tabUsersBtn">
+        <span>Материалы</span>
+        <span class="tab-sub">юзеры</span>
+      </button>
+      <button type="button" class="admin-square-tab-btn" id="tabAuthorsBtn">
+        <span>Авторы</span>
+        <span class="tab-sub">карточки авторов</span>
+      </button>
+    </div>
+
+    <!-- 3. Мини-дашборд: 5 крупных инфо-карточек -->
+    <div class="admin-kpi-strip">
+      <div class="admin-kpi-card">
+        <span class="admin-kpi-label">Количество юзеров</span>
+        <span class="admin-kpi-val" id="kpiUsers">0</span>
+      </div>
+      <div class="admin-kpi-card">
+        <span class="admin-kpi-label">Количество видео</span>
+        <span class="admin-kpi-val" id="kpiVideos">0</span>
+      </div>
+      <div class="admin-kpi-card">
+        <span class="admin-kpi-label">Количество каруселей</span>
+        <span class="admin-kpi-val" id="kpiCarousels">0</span>
+      </div>
+      <div class="admin-kpi-card">
+        <span class="admin-kpi-label">Опубликованных</span>
+        <span class="admin-kpi-val" id="kpiPublished">0</span>
+      </div>
+      <div class="admin-kpi-card">
+        <span class="admin-kpi-label">Свободных материалов</span>
+        <span class="admin-kpi-val" id="kpiFree">0</span>
+      </div>
+    </div>
+
+    <!-- 4. Справа: Экспорт + Выход -->
+    <div class="top-right-account-col">
+      <button type="button" class="primary big-profile-btn" id="exportBtn" style="border:none">
+        <span>Экспорт в POSTER</span>
+      </button>
+      <button type="button" class="outline logout-under-btn" id="logout">Выход</button>
+    </div>
+  </header>
+
+  <main class="layout-full">
+    <p id="exportMsg" class="text-primary" style="margin:0 0 4px" hidden></p>
+    <!-- Вкладка 1: Календарь -->
+    <div id="weekMount"></div>
+    <!-- Вкладка 2: Юзеры (карточки по юзерам: В календаре / Вне календаря) -->
+    <div id="usersTabMount" class="admin-tab-pane" hidden></div>
+    <!-- Вкладка 3: Авторы (профили, ники соцсетей, облака тегов и отметок) -->
+    <div id="authorsTabMount" class="admin-tab-pane" hidden></div>
+  </main>
+
+  <div class="modal-backdrop" id="modal">
+    <div class="modal modal-wide" id="modalPanel" role="dialog" aria-labelledby="modalTitle">
+      <input id="subCover" type="file" accept="image/*" hidden>
+      <input id="subVideo" type="file" accept="video/*" hidden>
+      <input id="subCarousel" type="file" accept="image/*" multiple hidden>
+
+      <div class="modal-header">
+        <div class="modal-header-text">
+          <h2 id="modalTitle">Материал</h2>
+          <p id="modalMeta" class="modal-desc"></p>
+        </div>
+        <button type="button" class="modal-close ghost" id="closeBtnTop" aria-label="Закрыть">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-layout">
+          <div class="modal-previews">
+            <!-- СЛЕВА ОБЛОЖКА, СПРАВА ВИДЕО -->
+            <div class="modal-equal-media" id="videoEqualPreviews">
+              <div class="modal-media-box">
+                <span class="preview-label">Обложка</span>
+                <div class="modal-media-card" id="coverCardBox">
+                  <img id="modalCoverPreview" alt="Обложка" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                  <button type="button" class="media-upload-plus" id="pickCoverBtn" title="Загрузить обложку (9:16)">+</button>
+                </div>
+              </div>
+              <div class="modal-media-box">
+                <span class="preview-label">Видео</span>
+                <div class="modal-media-card" id="videoCardBox">
+                  <video id="modalVideoPreview" controls hidden></video>
+                  <button type="button" class="media-upload-plus" id="pickVideoBtn" title="Загрузить видео (9:16)">+</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- КАРУСЕЛЬ -->
+            <div id="carouselPreviewWrap" hidden>
+              <span class="preview-label" style="display:block;margin-bottom:6px;font-size:11px;font-weight:600;color:var(--foreground)">
+                Карусель (<span id="carouselCountLabel">0</span>/15) — перетащите фото для смены порядка
+              </span>
+              <div class="carousel-modal-grid" id="carouselStrip"></div>
+            </div>
+
+            <!-- Мини-календарь и выбор таймслота под превью -->
+            <div class="modal-slot-picker" id="modalSlotPicker">
+              <div class="mini-cal-box" id="modalMiniMonthMount"></div>
+              <div class="modal-timeslot-grid" id="modalTimeslotGrid"></div>
+            </div>
+          </div>
+
+          <div class="copy-fields-scroll" id="copyFormRoot">
+            <div class="copy-section">
+              <div class="copy-section-head"><span class="badge">Общее</span></div>
+              <div class="field">
+                <label data-for="base"></label>
+                <p class="copy-hint" data-hint="base"></p>
+                <textarea data-copy-field="base" rows="3"></textarea>
+                <div class="counter" data-copy-counter="base"></div>
+              </div>
+              <div class="copy-subsection">
+                <div class="copy-section-head"><span class="badge">Уникальные параметры и тег связки</span></div>
+                <p class="copy-hint copy-hint-block">Добавляются к публикации отдельно от текста сетей — и при общем описании, и при своём.</p>
+                <div class="field">
+                  <label data-for="series_tag"></label>
+                  <p class="copy-hint" data-hint="series_tag"></p>
+                  <div class="series-tag-row">
+                    <select data-copy-field="series_tag"></select>
+                  </div>
+                  <div class="series-tag-creator">
+                    <input type="text" data-new-tag-name placeholder="НовыйТег (одно слово)" maxlength="24">
+                    <input type="color" data-new-tag-color value="#2dd4bf" title="Цвет тега">
+                    <button type="button" class="outline" data-add-series-tag>+ Создать тег</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label data-for="tags"></label>
+                  <p class="copy-hint" data-hint="tags"></p>
+                  <textarea data-copy-field="tags" rows="2" placeholder="#тег1, тег2, #тег3"></textarea>
+                </div>
+                <div class="field">
+                  <label data-for="instagram_collaborators"></label>
+                  <p class="copy-hint" data-hint="instagram_collaborators"></p>
+                  <input type="text" data-copy-field="instagram_collaborators" spellcheck="false" placeholder="user1, user2">
+                </div>
+                <div class="field">
+                  <label data-for="instagram_reel_tags"></label>
+                  <p class="copy-hint" data-hint="instagram_reel_tags"></p>
+                  <input type="text" data-copy-field="instagram_reel_tags" spellcheck="false" placeholder="brand, friend_name">
+                </div>
+                <div class="field">
+                  <label data-for="tiktok_mentions"></label>
+                  <p class="copy-hint" data-hint="tiktok_mentions"></p>
+                  <input type="text" data-copy-field="tiktok_mentions" spellcheck="false" placeholder="@user1, @user2">
+                </div>
+              </div>
+            </div>
+            <p class="copy-network-intro">Тексты сетей свёрнуты и выключены: везде универсальный текст, пока не раскроете сеть и включите «Своё описание».</p>
+
+            <details class="copy-accordion" data-accordion="instagram">
+              <summary class="copy-accordion-summary">
+                <span class="badge primary">Instagram</span>
+                <span class="acc-summary" data-acc-summary="instagram">универсальный текст</span>
+              </summary>
+              <div class="acc-body">
+                <label class="override-toggle">
+                  <input type="checkbox" data-copy-override="instagram">
+                  <span>Своё описание вместо общего</span>
+                </label>
+                <div class="override-panel" data-copy-override-panel="instagram" hidden>
+                  <div class="field">
+                    <label data-for="instagram"></label>
+                    <textarea data-copy-field="instagram" rows="3"></textarea>
+                    <div class="counter" data-copy-counter="instagram"></div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="copy-accordion" data-accordion="tiktok">
+              <summary class="copy-accordion-summary">
+                <span class="badge">TikTok</span>
+                <span class="acc-summary" data-acc-summary="tiktok">универсальный текст</span>
+              </summary>
+              <div class="acc-body">
+                <label class="override-toggle">
+                  <input type="checkbox" data-copy-override="tiktok">
+                  <span>Своё описание вместо общего</span>
+                </label>
+                <div class="override-panel" data-copy-override-panel="tiktok" hidden>
+                  <div class="field">
+                    <label data-for="tiktok"></label>
+                    <textarea data-copy-field="tiktok" rows="3"></textarea>
+                    <div class="counter" data-copy-counter="tiktok"></div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="copy-accordion" data-accordion="youtube">
+              <summary class="copy-accordion-summary">
+                <span class="badge">YouTube</span>
+                <span class="acc-summary" data-acc-summary="youtube">универсальный текст</span>
+              </summary>
+              <div class="acc-body">
+                <label class="override-toggle">
+                  <input type="checkbox" data-copy-override="youtube">
+                  <span>Своё название и/или описание</span>
+                </label>
+                <div class="override-panel" data-copy-override-panel="youtube" hidden>
+                  <div class="field">
+                    <label data-for="youtube_title"></label>
+                    <input type="text" data-copy-field="youtube_title" spellcheck="false">
+                    <div class="counter" data-copy-counter="youtube_title"></div>
+                  </div>
+                  <div class="field">
+                    <label data-for="youtube"></label>
+                    <textarea data-copy-field="youtube" rows="3"></textarea>
+                    <div class="counter" data-copy-counter="youtube"></div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="copy-accordion" data-accordion="vk">
+              <summary class="copy-accordion-summary">
+                <span class="badge">VK Клипы</span>
+                <span class="acc-summary" data-acc-summary="vk">универсальный текст</span>
+              </summary>
+              <div class="acc-body">
+                <label class="override-toggle">
+                  <input type="checkbox" data-copy-override="vk">
+                  <span>Своё описание вместо общего</span>
+                </label>
+                <div class="override-panel" data-copy-override-panel="vk" hidden>
+                  <div class="field">
+                    <label data-for="vk"></label>
+                    <textarea data-copy-field="vk" rows="3"></textarea>
+                    <div class="counter" data-copy-counter="vk"></div>
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+        <p class="error" id="modalErr"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="ghost" id="deleteSubBtn" style="color:var(--destructive)">Удалить</button>
+        <button type="button" class="ghost" id="clearSlotBtn" hidden>Очистить слот</button>
+        <button type="button" class="outline" id="approveSlotBtn" hidden>Подтвердить слот</button>
+        <span class="footer-spacer"></span>
+        <button type="button" class="outline" id="duplicateBtn">Создать дубликат</button>
+        <button type="button" class="primary" id="saveCopyBtn">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/api.js"></script>
+  <script src="/static/copy-fields.js"></script>
+  <script src="/static/week-planner.js"></script>
+  <script>
+    let me, limits, poolItems = [], authorsList = [], planner, modalSubId = null, draftNewState = null;
+    let activeAdminTab = "calendar";
+    let modalScheduledAt = "";
+    let modalSlotPart = 1;
+    let modalMediaKind = "video";
+    let monthCountsCache = {};
+    let carouselItems = [];
+    let dragSlideIdx = null;
+
+    const STATUS_RU = WeekPlanner.DEFAULT_STATUS;
+    const SLOT_HOURS = [9, 11, 13, 15, 17, 19];
+    const SLOT_LABELS = ["09–11", "11–13", "13–15", "15–17", "17–19", "19–21"];
+    const modal = document.getElementById("modal");
+    const modalPanel = document.getElementById("modalPanel");
+    const copyRoot = document.getElementById("copyFormRoot");
+
+    for (const key of CopyFields.keys) {
+      const lab = document.querySelector(`[data-for="${key}"]`);
+      if (lab) lab.textContent = CopyFields.labels[key] || key;
+      const hint = document.querySelector(`[data-hint="${key}"]`);
+      if (hint && CopyFields.hints[key]) hint.textContent = CopyFields.hints[key];
+    }
+    CopyFields.bindOverrides(copyRoot, () => loadAll());
+
+    async function deleteCardItem(item) {
+      if (WeekPlanner.isLocked(item)) {
+        alert("Карточка подтверждена и зафиксирована. Сначала снимите подтверждение.");
+        return;
+      }
+      try {
+        await api(`/api/submissions/${item.id}`, { method: "DELETE" });
+        modal.classList.remove("open");
+        await loadAll();
+      } catch (err) {
+        alert(err.message || String(err));
+      }
+    }
+
+    const cardOpts = () => ({
+      me,
+      statusLabels: STATUS_RU,
+      onlyMineInPool: false,
+      canDrag: (item) => WeekPlanner.defaultCanDrag(item, me),
+      onOpen: (id, item) => openModal(id, item),
+      onDelete: (item) => deleteCardItem(item),
+      onClearSlot: async (item) => {
+        await planner.clearSlot(item);
+        await loadAll();
+      },
+      onToggleApprove: async (item) => {
+        await planner.toggleApprove(item);
+        await loadAll();
+      },
+      onDropToPool: async (id) => {
+        const sub = poolItems.find((x) => x.id === id) || planner.findItem(id);
+        if (sub) await planner.clearSlot(sub);
+      },
+    });
+
+    /* --- Переключение вкладок Админа: Календарь / Юзеры / Авторы --- */
+    function setAdminTab(tab) {
+      activeAdminTab = tab;
+      document.getElementById("tabCalendarBtn").classList.toggle("active", tab === "calendar");
+      document.getElementById("tabUsersBtn").classList.toggle("active", tab === "users");
+      document.getElementById("tabAuthorsBtn").classList.toggle("active", tab === "authors");
+
+      document.getElementById("weekMount").hidden = tab !== "calendar";
+      document.getElementById("usersTabMount").hidden = tab !== "users";
+      document.getElementById("authorsTabMount").hidden = tab !== "authors";
+
+      if (tab === "users") renderUsersTab();
+      if (tab === "authors") renderAuthorsTab();
+    }
+
+    document.getElementById("tabCalendarBtn").onclick = () => setAdminTab("calendar");
+    document.getElementById("tabUsersBtn").onclick = () => setAdminTab("users");
+    document.getElementById("tabAuthorsBtn").onclick = () => setAdminTab("authors");
+
+    function renderUsersTab() {
+      const mount = document.getElementById("usersTabMount");
+      mount.innerHTML = "";
+      const byUser = new Map();
+      for (const item of poolItems) {
+        const key = item.user_id || item.author_name || "unknown";
+        if (!byUser.has(key)) {
+          byUser.set(key, {
+            author_name: item.author_name || "Автор",
+            author_login: item.author_login || "",
+            avatar_url: item.author_avatar_url || null,
+            scheduled: [],
+            unscheduled: [],
+          });
+        }
+        const g = byUser.get(key);
+        if (WeekPlanner.slotForItem(item)) {
+          g.scheduled.push(item);
+        } else {
+          g.unscheduled.push(item);
+        }
+      }
+
+      if (!byUser.size) {
+        mount.innerHTML = `<p class="text-muted">Материалов пока нет.</p>`;
+        return;
+      }
+
+      for (const g of byUser.values()) {
+        g.scheduled.sort((a, b) => (a.scheduled_at || "").localeCompare(b.scheduled_at || ""));
+        g.unscheduled.sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
+
+        const section = document.createElement("div");
+        section.className = "admin-user-group";
+        const avHtml = g.avatar_url
+          ? `<img src="${g.avatar_url}" alt="">`
+          : `<div class="author-info-avatar-ph" style="width:36px;height:36px;font-size:13px">${(g.author_name || "А").slice(0, 1).toUpperCase()}</div>`;
+        section.innerHTML = `
+          <div class="admin-user-group-head">
+            ${avHtml}
+            <div>
+              <h3>${g.author_name}</h3>
+              <span class="text-muted" style="font-size:11px">@${g.author_login} · В календаре: ${g.scheduled.length} · Вне календаря: ${g.unscheduled.length}</span>
+            </div>
+          </div>
+          <div class="admin-user-subcolumns">
+            <div class="admin-subcol-box">
+              <div class="admin-subcol-title">
+                <span>В календаре (опубликованные / в расписании)</span>
+                <span class="badge primary">${g.scheduled.length}</span>
+              </div>
+              <div class="admin-cards-grid" data-subcol="scheduled"></div>
+            </div>
+            <div class="admin-subcol-box">
+              <div class="admin-subcol-title">
+                <span>Вне календаря (в пуле)</span>
+                <span class="badge">${g.unscheduled.length}</span>
+              </div>
+              <div class="admin-cards-grid" data-subcol="unscheduled"></div>
+            </div>
+          </div>`;
+
+        const schedGrid = section.querySelector('[data-subcol="scheduled"]');
+        const unschedGrid = section.querySelector('[data-subcol="unscheduled"]');
+
+        for (const it of g.scheduled) {
+          schedGrid.appendChild(
+            WeekPlanner.buildCard(it, {
+              ...cardOpts(),
+              inSlot: true,
+              compact: false,
+            })
+          );
+        }
+        for (const it of g.unscheduled) {
+          unschedGrid.appendChild(
+            WeekPlanner.buildCard(it, {
+              ...cardOpts(),
+              inSlot: false,
+              compact: false,
+            })
+          );
+        }
+
+        mount.appendChild(section);
+      }
+    }
+
+    async function renderAuthorsTab() {
+      const mount = document.getElementById("authorsTabMount");
+      try {
+        authorsList = await api("/api/admin/authors");
+      } catch (e) {
+        mount.innerHTML = `<p class="error">${e.message}</p>`;
+        return;
+      }
+      mount.innerHTML = "";
+      const grid = document.createElement("div");
+      grid.className = "authors-info-grid";
+
+      for (const au of authorsList) {
+        const p = au.profile || {};
+        const st = au.stats || { scheduled: 0, unscheduled: 0, approved: 0, total: 0 };
+        const card = document.createElement("div");
+        card.className = "author-info-card";
+        const avHtml = au.avatar_url
+          ? `<img src="${au.avatar_url}" alt="">`
+          : `<div class="author-info-avatar-ph">${(au.display_name || "А").slice(0, 1).toUpperCase()}</div>`;
+        const tagsPills = (au.series_tags || [])
+          .map(
+            (t) =>
+              `<span class="series-pill" style="border-color:${t.color};color:${t.color};background:rgba(255,255,255,0.04)">${t.name}</span>`
+          )
+          .join(" ");
+
+        card.innerHTML = `
+          <div class="author-info-top">
+            ${avHtml}
+            <div class="author-info-meta">
+              <h3>${au.display_name || au.login}</h3>
+              <p>Логин: <strong>@${au.login}</strong> · Роль: ${au.role === "admin" ? "Админ" : "Автор"}</p>
+              <p>Карточек всего: <strong>${st.total}</strong> (в календаре: ${st.scheduled}, зафиксировано: ${st.approved}, в пуле: ${st.unscheduled})</p>
+            </div>
+          </div>
+          <div class="author-handles-list">
+            <div><span>Имя / Фамилия</span><strong>${[p.first_name, p.last_name].filter(Boolean).join(" ") || au.display_name || "—"}</strong></div>
+            <div><span>Instagram</span><strong>${p.instagram_handle || "—"}</strong></div>
+            <div><span>TikTok</span><strong>${p.tiktok_handle || "—"}</strong></div>
+            <div><span>YouTube</span><strong>${p.youtube_handle || "—"}</strong></div>
+            <div><span>VK Клипы</span><strong>${p.vk_handle || "—"}</strong></div>
+            <div><span>Telegram</span><strong>${p.telegram_handle || "—"}</strong></div>
+          </div>
+          <div class="author-clouds-box">
+            <div class="author-cloud-row">
+              <strong>Облако хэштегов (.tags.txt)</strong>
+              <div>${p.tags_cloud || "—"}</div>
+            </div>
+            <div class="author-cloud-row">
+              <strong>Коллабораторы по умолчанию (.collaborators.txt)</strong>
+              <div>${p.default_collaborators || "—"}</div>
+            </div>
+            <div class="author-cloud-row">
+              <strong>Облако отметок Instagram (.reel_tags.txt)</strong>
+              <div>${p.ig_mentions_cloud || "—"}</div>
+            </div>
+            <div class="author-cloud-row">
+              <strong>Облако отметок TikTok</strong>
+              <div>${p.tt_mentions_cloud || "—"}</div>
+            </div>
+            <div class="author-cloud-row">
+              <strong>Личные теги связки</strong>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${tagsPills || "—"}</div>
+            </div>
+          </div>`;
+        grid.appendChild(card);
+      }
+      mount.appendChild(grid);
+    }
+
+    function setAdminReadonly(readonly) {
+      modalPanel.classList.toggle("readonly", readonly);
+      for (const id of ["subVideo", "subCover", "subCarousel", "saveCopyBtn", "pickCoverBtn", "pickVideoBtn"]) {
+        const el = document.getElementById(id);
+        if (el) el.disabled = readonly;
+      }
+      copyRoot.querySelectorAll("input, textarea, select, button").forEach((el) => {
+        if (
+          el.hasAttribute("data-copy-field") ||
+          el.hasAttribute("data-copy-override") ||
+          el.hasAttribute("data-add-series-tag") ||
+          el.hasAttribute("data-new-tag-name") ||
+          el.hasAttribute("data-new-tag-color")
+        ) {
+          el.disabled = readonly;
+        }
+      });
+    }
+
+    document.getElementById("pickCoverBtn").onclick = () => document.getElementById("subCover").click();
+    document.getElementById("pickVideoBtn").onclick = () => document.getElementById("subVideo").click();
+
+    document.getElementById("subCover").addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      const coverImg = document.getElementById("modalCoverPreview");
+      coverImg.src = URL.createObjectURL(f);
+      coverImg.hidden = false;
+      document.getElementById("coverCardBox").classList.add("has-media");
+    });
+
+    document.getElementById("subVideo").addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      const videoEl = document.getElementById("modalVideoPreview");
+      videoEl.src = URL.createObjectURL(f);
+      videoEl.hidden = false;
+      document.getElementById("videoCardBox").classList.add("has-media");
+    });
+
+    function renderCarouselModalStrip(readonly = false) {
+      const cStrip = document.getElementById("carouselStrip");
+      document.getElementById("carouselCountLabel").textContent = String(carouselItems.length);
+      cStrip.innerHTML = "";
+
+      carouselItems.forEach((item, idx) => {
+        const tile = document.createElement("div");
+        tile.className = "carousel-slide-item";
+        tile.draggable = !readonly;
+        tile.innerHTML = `
+          <img src="${item.url}" alt="Слайд ${idx + 1}">
+          <span class="carousel-slide-index">${idx + 1}</span>
+          ${!readonly ? `<button type="button" class="carousel-slide-remove" title="Убрать слайд">×</button>` : ""}`;
+        if (!readonly) {
+          tile.querySelector(".carousel-slide-remove").onclick = (ev) => {
+            ev.stopPropagation();
+            carouselItems.splice(idx, 1);
+            renderCarouselModalStrip(false);
+          };
+          tile.addEventListener("dragstart", (ev) => {
+            dragSlideIdx = idx;
+            tile.classList.add("dragging");
+            ev.dataTransfer.effectAllowed = "move";
+          });
+          tile.addEventListener("dragend", () => {
+            dragSlideIdx = null;
+            tile.classList.remove("dragging");
+          });
+          tile.addEventListener("dragover", (ev) => ev.preventDefault());
+          tile.addEventListener("drop", (ev) => {
+            ev.preventDefault();
+            if (dragSlideIdx === null || dragSlideIdx === idx) return;
+            const moved = carouselItems.splice(dragSlideIdx, 1)[0];
+            carouselItems.splice(idx, 0, moved);
+            dragSlideIdx = null;
+            renderCarouselModalStrip(false);
+          });
+        }
+        cStrip.appendChild(tile);
+      });
+
+      if (!readonly && carouselItems.length < 15) {
+        const addBtn = document.createElement("button");
+        addBtn.type = "button";
+        addBtn.className = "carousel-add-tile";
+        addBtn.innerHTML = `+<span>Фото</span>`;
+        addBtn.onclick = () => document.getElementById("subCarousel").click();
+        cStrip.appendChild(addBtn);
+      }
+    }
+
+    document.getElementById("subCarousel").addEventListener("change", (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      if (!carouselItems.some((x) => x.kind === "new")) {
+        carouselItems = [];
+      }
+      for (const f of files) {
+        if (carouselItems.length >= 15) break;
+        carouselItems.push({ kind: "new", file: f, url: URL.createObjectURL(f) });
+      }
+      renderCarouselModalStrip(false);
+    });
+
+    async function renderModalSlotPicker(readonly = false) {
+      const calMount = document.getElementById("modalMiniMonthMount");
+      const slotGrid = document.getElementById("modalTimeslotGrid");
+      const baseDate = modalScheduledAt ? new Date(modalScheduledAt) : new Date();
+      const y = baseDate.getFullYear();
+      const m = baseDate.getMonth() + 1;
+      const ymKey = `${y}-${m}`;
+      if (!monthCountsCache[ymKey]) {
+        try {
+          const res = await api(`/api/calendar/month?year=${y}&month=${m}`);
+          monthCountsCache[ymKey] = res.counts || {};
+        } catch (_) {
+          monthCountsCache[ymKey] = {};
+        }
+      }
+      const selectedDateIso = modalScheduledAt ? modalScheduledAt.slice(0, 10) : WeekPlanner.isoDate(baseDate);
+      const selectedHour = modalScheduledAt ? parseInt(modalScheduledAt.slice(11, 13), 10) : null;
+
+      WeekPlanner.renderMiniMonth(
+        calMount,
+        y,
+        m,
+        monthCountsCache[ymKey],
+        WeekPlanner.mondayOf(baseDate),
+        (clickedDate, past) => {
+          if (readonly) return;
+          if (past) {
+            alert("Нельзя ставить публикацию на прошедшую дату.");
+            return;
+          }
+          const wd = (clickedDate.getDay() + 6) % 7;
+          if (wd > 4) {
+            alert("Публикации ставятся на будние дни (Пн–Пт).");
+            return;
+          }
+          const dIso = WeekPlanner.isoDate(clickedDate);
+          const hr = selectedHour && SLOT_HOURS.includes(selectedHour) ? selectedHour : 9;
+          modalScheduledAt = `${dIso}T${String(hr).padStart(2, "0")}:00`;
+          renderModalSlotPicker(readonly);
+        }
+      );
+
+      calMount.querySelectorAll(".mini-cal-day").forEach((btn) => {
+        if (btn.textContent === String(parseInt(selectedDateIso.slice(8, 10), 10)) && modalScheduledAt) {
+          btn.classList.add("selected-day");
+        }
+      });
+
+      slotGrid.innerHTML = "";
+      SLOT_HOURS.forEach((hr, idx) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "modal-timeslot-btn" + (modalScheduledAt && selectedHour === hr ? " active" : "");
+        b.textContent = SLOT_LABELS[idx];
+        b.disabled = readonly || WeekPlanner.isPastDateIso(selectedDateIso);
+        b.onclick = () => {
+          let dIso = selectedDateIso;
+          if (WeekPlanner.isPastDateIso(dIso)) dIso = WeekPlanner.todayIso();
+          const dObj = new Date(dIso + "T12:00:00");
+          const wd = (dObj.getDay() + 6) % 7;
+          if (wd > 4) dIso = WeekPlanner.isoDate(WeekPlanner.mondayOf(dObj));
+          modalScheduledAt = `${dIso}T${String(hr).padStart(2, "0")}:00`;
+          renderModalSlotPicker(readonly);
+        };
+        slotGrid.appendChild(b);
+      });
+
+      const poolBtn = document.createElement("button");
+      poolBtn.type = "button";
+      poolBtn.className = "modal-timeslot-btn modal-timeslot-pool-btn" + (!modalScheduledAt ? " active" : "");
+      poolBtn.textContent = "В пуле (без слота расписания)";
+      poolBtn.disabled = readonly;
+      poolBtn.onclick = () => {
+        modalScheduledAt = "";
+        renderModalSlotPicker(readonly);
+      };
+      slotGrid.appendChild(poolBtn);
+    }
+
+    function setPreview(sub, readonly = false) {
+      const isCarousel = modalMediaKind === "carousel";
+      document.getElementById("videoEqualPreviews").hidden = isCarousel;
+      document.getElementById("carouselPreviewWrap").hidden = !isCarousel;
+
+      if (isCarousel) {
+        const slides = (sub && sub.carousel_files) || [];
+        carouselItems = slides.map((_, idx) => ({
+          kind: "existing",
+          origIndex: idx,
+          url: `/api/submissions/${sub.id}/carousel/${idx}?thumb=1&t=${encodeURIComponent(sub.updated_at || Date.now())}`,
+        }));
+        renderCarouselModalStrip(readonly);
+        return;
+      }
+
+      const coverImg = document.getElementById("modalCoverPreview");
+      const coverBox = document.getElementById("coverCardBox");
+      if (sub && sub.cover_name) {
+        coverImg.onload = () => {
+          coverImg.hidden = false;
+          coverBox.classList.add("has-media");
+        };
+        coverImg.onerror = () => {
+          coverImg.hidden = true;
+          coverBox.classList.remove("has-media");
+        };
+        coverImg.src = `/api/submissions/${sub.id}/cover?thumb=0&t=${Date.now()}`;
+      } else {
+        coverImg.hidden = true;
+        coverImg.removeAttribute("src");
+        coverBox.classList.remove("has-media");
+      }
+
+      const videoEl = document.getElementById("modalVideoPreview");
+      const videoBox = document.getElementById("videoCardBox");
+      const clearVideo = () => {
+        videoEl.pause();
+        videoEl.removeAttribute("src");
+        videoEl.load();
+        videoEl.hidden = true;
+        videoBox.classList.remove("has-media");
+      };
+      videoEl.onerror = clearVideo;
+      videoEl.onloadeddata = () => {
+        videoEl.hidden = false;
+        videoBox.classList.add("has-media");
+      };
+      if (sub && sub.video_name) {
+        videoEl.hidden = true;
+        videoEl.src = `/api/submissions/${sub.id}/video?t=${Date.now()}`;
+        videoEl.load();
+      } else {
+        clearVideo();
+      }
+    }
+
+    function openNewDraftModal(scheduledAt = "", slotPart = 1, mediaKind = "video") {
+      modalSubId = null;
+      draftNewState = { scheduledAt, slotPart, mediaKind };
+      modalScheduledAt = scheduledAt || "";
+      modalSlotPart = slotPart || 1;
+      modalMediaKind = mediaKind || "video";
+      carouselItems = [];
+
+      document.getElementById("modalTitle").textContent =
+        mediaKind === "carousel" ? "Новая карусель" : "Новый рилс";
+      document.getElementById("modalMeta").textContent = modalScheduledAt
+        ? `${fmtLocal(modalScheduledAt)} (слот ${modalSlotPart})`
+        : "В пуле (не в расписании)";
+
+      CopyFields.writeForm(copyRoot, {}, me);
+      CopyFields.bindCounters(copyRoot, limits);
+      document.getElementById("modalErr").textContent = "";
+      document.getElementById("subVideo").value = "";
+      document.getElementById("subCover").value = "";
+      document.getElementById("subCarousel").value = "";
+
+      setPreview(null, false);
+      setAdminReadonly(false);
+      renderModalSlotPicker(false);
+
+      document.getElementById("approveSlotBtn").hidden = true;
+      document.getElementById("clearSlotBtn").hidden = true;
+      document.getElementById("deleteSubBtn").hidden = true;
+      document.getElementById("duplicateBtn").hidden = true;
+
+      modal.classList.add("open");
+    }
+
+    function openModal(id, sub) {
+      modalSubId = id;
+      draftNewState = null;
+      sub = sub || poolItems.find((x) => x.id === id) || planner.findItem(id);
+      if (!sub) return;
+      modalScheduledAt = sub.scheduled_at || "";
+      modalSlotPart = sub.slot_part || 1;
+      modalMediaKind = sub.media_kind || "video";
+
+      const d = sub.descriptions || {};
+      const inSlot = !!WeekPlanner.slotForItem(sub);
+      const locked = WeekPlanner.isLocked(sub);
+      const kindPrefix = sub.media_kind === "carousel" ? "Карусель · " : "Рилс · ";
+      document.getElementById("modalTitle").textContent =
+        kindPrefix + (d.base || d.tiktok || sub.author_name || id).slice(0, 72);
+      document.getElementById("modalMeta").textContent =
+        `${sub.author_name || "—"} · ${
+          inSlot ? `${fmtLocal(sub.scheduled_at)} (слот ${sub.slot_part || 1})` : "В пуле (не в расписании)"
+        }${locked ? " · Слот подтверждён и зафиксирован (снимите фиксацию для правок)" : ""}`;
+      CopyFields.writeForm(copyRoot, d, null);
+      CopyFields.bindCounters(copyRoot, limits);
+      document.getElementById("subVideo").value = "";
+      document.getElementById("subCover").value = "";
+      document.getElementById("subCarousel").value = "";
+
+      setPreview(sub, locked);
+      setAdminReadonly(locked);
+      renderModalSlotPicker(locked);
+      document.getElementById("modalErr").textContent = "";
+
+      const appBtn = document.getElementById("approveSlotBtn");
+      const clrBtn = document.getElementById("clearSlotBtn");
+      appBtn.hidden = !inSlot;
+      appBtn.textContent = locked ? "Снять фиксацию слота" : "Подтвердить слот";
+      clrBtn.hidden = !inSlot || locked;
+      document.getElementById("deleteSubBtn").hidden = locked;
+      document.getElementById("duplicateBtn").hidden = false;
+
+      modal.classList.add("open");
+    }
+
+    async function updateAdminKpis() {
+      try {
+        authorsList = await api("/api/admin/authors");
+      } catch (_) {}
+      const totalUsers = authorsList.length || new Set(poolItems.map((x) => x.user_id)).size;
+      const videosCnt = poolItems.filter((x) => x.media_kind !== "carousel").length;
+      const carouselsCnt = poolItems.filter((x) => x.media_kind === "carousel").length;
+      const publishedCnt = poolItems.filter((x) => !!WeekPlanner.slotForItem(x)).length;
+      const freeCnt = poolItems.length - publishedCnt;
+
+      document.getElementById("kpiUsers").textContent = String(totalUsers);
+      document.getElementById("kpiVideos").textContent = String(videosCnt);
+      document.getElementById("kpiCarousels").textContent = String(carouselsCnt);
+      document.getElementById("kpiPublished").textContent = String(publishedCnt);
+      document.getElementById("kpiFree").textContent = String(freeCnt);
+    }
+
+    async function refreshPool() {
+      poolItems = await api("/api/admin/submissions");
+      for (const s of poolItems) s.is_mine = true;
+      await updateAdminKpis();
+      if (activeAdminTab === "users") renderUsersTab();
+      if (activeAdminTab === "authors") await renderAuthorsTab();
+    }
+
+    async function loadAll() {
+      await refreshPool();
+      await planner.load();
+    }
+
+    document.getElementById("saveCopyBtn").onclick = async () => {
+      const err = document.getElementById("modalErr");
+      err.textContent = "";
+      try {
+        const descriptions = CopyFields.readForm(copyRoot);
+        let id = modalSubId;
+        if (!id && draftNewState) {
+          const createFd = new FormData();
+          createFd.set("scheduled_at", modalScheduledAt || "");
+          createFd.set("slot_part", String(modalSlotPart || 1));
+          createFd.set("media_kind", modalMediaKind || "video");
+          createFd.set("descriptions_json", JSON.stringify(descriptions));
+          const created = await apiForm("/api/submissions", createFd);
+          id = created.id;
+          draftNewState = null;
+        } else {
+          const putBody = {
+            descriptions,
+            scheduled_at: modalScheduledAt || "",
+            slot_part: modalSlotPart || 1,
+          };
+          const onlyExistingReordered =
+            modalMediaKind === "carousel" &&
+            carouselItems.length > 0 &&
+            carouselItems.every((x) => x.kind === "existing");
+          if (onlyExistingReordered) {
+            putBody.carousel_order = carouselItems.map((x) => x.origIndex);
+          }
+          await api(`/api/submissions/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(putBody),
+          });
+        }
+
+        const fd = new FormData();
+        const v = document.getElementById("subVideo").files[0];
+        const c = document.getElementById("subCover").files[0];
+        const newCarFiles = carouselItems.filter((x) => x.kind === "new").map((x) => x.file);
+        if (v) fd.append("video", v);
+        if (c) fd.append("cover", c);
+        newCarFiles.forEach((file) => fd.append("carousel", file, file.name));
+        if (v || c || newCarFiles.length) {
+          await apiForm(`/api/submissions/${id}/files`, fd);
+        }
+
+        monthCountsCache = {};
+        await loadAll();
+        closeModal();
+      } catch (e) {
+        showError(err, e);
+      }
+    };
+
+    document.getElementById("duplicateBtn").onclick = async () => {
+      if (!modalSubId) return;
+      const err = document.getElementById("modalErr");
+      err.textContent = "";
+      try {
+        await api(`/api/submissions/${modalSubId}/duplicate`, { method: "POST" });
+        await loadAll();
+        closeModal();
+      } catch (e) {
+        showError(err, e);
+      }
+    };
+
+    document.getElementById("approveSlotBtn").onclick = async () => {
+      if (!modalSubId) return;
+      const sub = poolItems.find((x) => x.id === modalSubId) || planner.findItem(modalSubId);
+      if (!sub) return;
+      await planner.toggleApprove(sub);
+      await loadAll();
+      const updated = poolItems.find((x) => x.id === modalSubId) || planner.findItem(modalSubId);
+      if (updated) {
+        openModal(updated.id, updated);
+      } else {
+        closeModal();
+      }
+    };
+
+    document.getElementById("clearSlotBtn").onclick = async () => {
+      if (!modalSubId) return;
+      const sub = poolItems.find((x) => x.id === modalSubId) || planner.findItem(modalSubId);
+      if (!sub) return;
+      monthCountsCache = {};
+      await planner.clearSlot(sub);
+      closeModal();
+    };
+
+    document.getElementById("deleteSubBtn").onclick = () => {
+      if (!modalSubId) return;
+      const sub = poolItems.find((x) => x.id === modalSubId) || planner.findItem(modalSubId);
+      if (!sub) return;
+      WeekPlanner.confirmDeleteModal(sub, deleteCardItem);
+    };
+
+    document.getElementById("exportBtn").onclick = async () => {
+      const msg = document.getElementById("exportMsg");
+      msg.hidden = false;
+      try {
+        const r = await api("/api/admin/export-poster", { method: "POST" });
+        msg.textContent = `Экспортировано: ${r.count}. JSON: ${r.path}`;
+        await loadAll();
+      } catch (e) {
+        msg.textContent = e.message;
+        msg.style.color = "var(--destructive)";
+      }
+    };
+
+    const closeModal = () => {
+      draftNewState = null;
+      modal.classList.remove("open");
+    };
+    document.getElementById("closeBtnTop").onclick = closeModal;
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+    document.getElementById("logout").onclick = async () => {
+      await api("/api/logout", { method: "POST" });
+      location.href = "/login.html";
+    };
+
+    (async () => {
+      me = await api("/api/me");
+      limits = await api("/api/limits");
+      const tags = await api("/api/series-tags");
+      CopyFields.setSeriesTags(tags);
+      CopyFields.populateSeriesSelect(copyRoot);
+
+      planner = WeekPlanner.init({
+        mount: document.getElementById("weekMount"),
+        labelEl: document.getElementById("weekLabel"),
+        prevBtn: document.getElementById("prev"),
+        nextBtn: document.getElementById("next"),
+        miniMonthMount: document.getElementById("miniMonthMount"),
+        me,
+        statusLabels: STATUS_RU,
+        onOpen: (id, item) => openModal(id, item),
+        onCreate: async (key, slotPart = 1, mediaKind = "video") => {
+          openNewDraftModal(key, slotPart, mediaKind);
+        },
+        onMoved: () => refreshPool(),
+        resolveItem: (id) => poolItems.find((x) => x.id === id),
+        canDrag: (item) => WeekPlanner.defaultCanDrag(item, me),
+      });
+
+      await loadAll();
+    })().catch(() => (location.href = "/login.html"));
+  </script>
+</body>
+</html>
