@@ -919,7 +919,21 @@ async def api_upload_files(
             if old.is_file():
                 old.unlink()
         video_name = f"video{ext}"
-        tmp_video.replace(dest / video_name)
+        final_video = dest / video_name
+        tmp_video.replace(final_video)
+        if ext == ".mp4" and shutil.which("ffmpeg"):
+            fast_tmp = dest / "__faststart.mp4"
+            try:
+                import subprocess
+                subprocess.run(
+                    ["ffmpeg", "-y", "-v", "error", "-i", str(final_video), "-c", "copy", "-movflags", "+faststart", str(fast_tmp)],
+                    timeout=60,
+                    check=True,
+                )
+                if fast_tmp.is_file() and fast_tmp.stat().st_size > 1024:
+                    fast_tmp.replace(final_video)
+            except Exception:
+                fast_tmp.unlink(missing_ok=True)
 
     if cover and cover.filename:
         raw_cov = await cover.read()

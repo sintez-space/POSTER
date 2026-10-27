@@ -35,7 +35,7 @@ def ensure_demo_users():
                 continue
             conn.execute(
                 """
-                INSERT INTO users (id, login, email, password_hash, role, display_name, is_approved, created_at)
+                INSERT OR IGNORE INTO users (id, login, email, password_hash, role, display_name, is_approved, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, 1, ?)
                 """,
                 (str(uuid.uuid4()), login_name, email, hash_password(password), role, name, now),
