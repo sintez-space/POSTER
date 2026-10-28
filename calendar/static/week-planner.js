@@ -84,6 +84,39 @@ const WeekPlanner = (() => {
     return x;
   }
 
+  function isWeekend(d) {
+    const wd = d.getDay();
+    return wd === 0 || wd === 6;
+  }
+
+  function shiftWorkdays(d, n) {
+    let x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const step = n >= 0 ? 1 : -1;
+    let left = Math.abs(n);
+    while (isWeekend(x)) x = addDays(x, step);
+    while (left > 0) {
+      x = addDays(x, step);
+      if (!isWeekend(x)) left -= 1;
+    }
+    return x;
+  }
+
+  function visibleWorkdays(start, count) {
+    const days = [];
+    let x = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    while (isWeekend(x)) x = addDays(x, 1);
+    for (let i = 0; i < count; i++) {
+      days.push(x);
+      x = shiftWorkdays(x, 1);
+    }
+    return days;
+  }
+
+  function weekBreakBefore(days, index) {
+    if (index <= 0) return false;
+    return isoDate(mondayOf(days[index])) !== isoDate(mondayOf(days[index - 1]));
+  }
+
   function parseScheduled(iso) {
     const [datePart, timePart] = (iso || "").split("T");
     if (!datePart) return null;
@@ -136,10 +169,14 @@ const WeekPlanner = (() => {
     return !!item.is_mine;
   }
 
-  function weekLabel(monday) {
-    const fri = addDays(monday, 4);
+  function weekLabel(from, to) {
     const opts = { day: "2-digit", month: "short" };
-    return `${monday.toLocaleDateString("ru-RU", opts)} — ${fri.toLocaleDateString("ru-RU", { ...opts, year: "numeric" })}`;
+    return `${from.toLocaleDateString("ru-RU", opts)} — ${to.toLocaleDateString("ru-RU", { ...opts, year: "numeric" })}`;
+  }
+
+  function dayArrowIcon(dir) {
+    const d = dir < 0 ? "M15 5 L8 12 L15 19" : "M9 5 L16 12 L9 19";
+    return `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   }
 
   function titleOf(item) {
@@ -695,7 +732,7 @@ const WeekPlanner = (() => {
    * Мини-календарь на месяц (слева в шапке): дни с постами закрашиваются,
    * непрозрачность пропорциональна числу постов в этот день.
    */
-  function renderMiniMonth(mount, year, month, countsMap, activeMonday, onSelectDay) {
+  function renderMiniMonth(mount, year, month, countsMap, activeMonday, onSelectDay, activeEnd) {
     if (!mount) return;
     mount.innerHTML = "";
     const monthNames = [
@@ -722,7 +759,11 @@ const WeekPlanner = (() => {
     const maxCnt = Math.max(1, ...Object.values(countsMap || {}));
 
     const activeStart = activeMonday ? isoDate(activeMonday) : "";
-    const activeEnd = activeMonday ? isoDate(addDays(activeMonday, 4)) : "";
+    const activeEndIso = activeEnd
+      ? isoDate(activeEnd)
+      : activeMonday
+        ? isoDate(addDays(activeMonday, 4))
+        : "";
 
     for (let i = 0; i < startPad; i++) {
       const empty = document.createElement("div");
@@ -741,7 +782,7 @@ const WeekPlanner = (() => {
         "mini-cal-day" +
         (cnt > 0 ? " has-posts" : "") +
         (past ? " is-past-day" : "") +
-        (dIso >= activeStart && dIso <= activeEnd ? " in-active-week" : "");
+        (dIso >= activeStart && dIso <= activeEndIso ? " in-active-week" : "");
       cell.textContent = String(day);
       if (cnt > 0) {
         const alpha = Math.min(0.95, 0.25 + (cnt / Math.max(3, maxCnt)) * 0.7);
@@ -772,41 +813,65 @@ const WeekPlanner = (() => {
       resolveItem,
     } = options;
 
-    let weekMonday = mondayOf(new Date());
+    let viewStart = mondayOf(new Date());
     let items = [];
+    let loadSeq = 0;
 
     function findItem(id) {
       return items.find((x) => x.id === id) || (resolveItem ? resolveItem(id) : null);
     }
 
+    function currentDays() {
+      return visibleWorkdays(viewStart, 5);
+    }
+
     prevBtn.onclick = () => {
-      weekMonday = addDays(weekMonday, -7);
+      viewStart = shiftWorkdays(viewStart, -5);
       load();
     };
     nextBtn.onclick = () => {
-      weekMonday = addDays(weekMonday, 7);
+      viewStart = shiftWorkdays(viewStart, 5);
       load();
     };
+    prevBtn.title = "На неделю назад";
+    nextBtn.title = "На неделю вперёд";
 
-    async function refreshMiniMonth() {
+    async function refreshMiniMonth(seq) {
       if (!miniMonthMount) return;
-      const y = weekMonday.getFullYear();
-      const m = weekMonday.getMonth() + 1;
+      const days = currentDays();
+      const anchor = days[0];
+      const y = anchor.getFullYear();
+      const m = anchor.getMonth() + 1;
       try {
         const mData = await api(`/api/calendar/month?year=${y}&month=${m}`);
-        renderMiniMonth(miniMonthMount, y, m, mData.counts || {}, weekMonday, (clickedDate) => {
-          weekMonday = mondayOf(clickedDate);
-          load();
-        });
+        if (seq !== loadSeq) return;
+        renderMiniMonth(
+          miniMonthMount,
+          y,
+          m,
+          mData.counts || {},
+          anchor,
+          (clickedDate) => {
+            const wd = (clickedDate.getDay() + 6) % 7;
+            viewStart = wd > 4 ? mondayOf(clickedDate) : new Date(clickedDate.getFullYear(), clickedDate.getMonth(), clickedDate.getDate());
+            load();
+          },
+          days[days.length - 1]
+        );
       } catch (_) {}
     }
 
     async function load() {
-      labelEl.textContent = weekLabel(weekMonday);
-      const data = await api(`/api/calendar/week?week_start=${isoDate(weekMonday)}`);
+      const seq = ++loadSeq;
+      const days = currentDays();
+      labelEl.textContent = weekLabel(days[0], days[days.length - 1]);
+      const data = await api(
+        `/api/calendar/week?date_from=${isoDate(days[0])}&date_to=${isoDate(days[days.length - 1])}`
+      );
+      if (seq !== loadSeq) return;
       items = data.items || [];
       render();
-      await refreshMiniMonth();
+      await refreshMiniMonth(seq);
     }
 
     function itemByKeyAndPart(key, part) {
@@ -926,16 +991,57 @@ const WeekPlanner = (() => {
     function render() {
       mount.innerHTML = "";
       const isAdmin = me && me.role === "admin";
+      const days = currentDays();
+      const stage = document.createElement("div");
+      stage.className = "week-stage";
+
+      const prevDay = document.createElement("button");
+      prevDay.type = "button";
+      prevDay.className = "week-day-arrow";
+      prevDay.setAttribute("aria-label", "На день назад");
+      prevDay.title = "На день назад";
+      prevDay.innerHTML = dayArrowIcon(-1);
+      prevDay.onclick = () => {
+        viewStart = shiftWorkdays(viewStart, -1);
+        load();
+      };
+
+      const nextDay = document.createElement("button");
+      nextDay.type = "button";
+      nextDay.className = "week-day-arrow";
+      nextDay.setAttribute("aria-label", "На день вперёд");
+      nextDay.title = "На день вперёд";
+      nextDay.innerHTML = dayArrowIcon(1);
+      nextDay.onclick = () => {
+        viewStart = shiftWorkdays(viewStart, 1);
+        load();
+      };
+
       const grid = document.createElement("div");
       grid.className = "week-grid" + (isAdmin ? " has-day-footers" : "");
+      const colParts = ["70px"];
+      for (let i = 0; i < days.length; i++) {
+        if (weekBreakBefore(days, i)) colParts.push("100px");
+        colParts.push("minmax(0, 1fr)");
+      }
+      grid.style.gridTemplateColumns = colParts.join(" ");
+
+      function appendGap() {
+        const gap = document.createElement("div");
+        gap.className = "week-week-gap";
+        gap.setAttribute("aria-hidden", "true");
+        grid.appendChild(gap);
+      }
 
       grid.appendChild(document.createElement("div")).className = "week-corner";
 
-      for (let d = 0; d < 5; d++) {
-        const dayDate = addDays(weekMonday, d);
+      for (let i = 0; i < days.length; i++) {
+        if (weekBreakBefore(days, i)) appendGap();
+        const dayDate = days[i];
         const head = document.createElement("div");
         head.className = "week-day-head";
-        head.innerHTML = `<strong>${DAY_NAMES[d]}</strong><span>${dayDate.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</span>`;
+        const name = DAY_NAMES[(dayDate.getDay() + 6) % 7] || "";
+        head.innerHTML = `<strong>${name}</strong><span>${dayDate.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</span>`;
         grid.appendChild(head);
       }
 
@@ -946,8 +1052,9 @@ const WeekPlanner = (() => {
         timeLabel.textContent = SLOT_LABELS[si];
         grid.appendChild(timeLabel);
 
-        for (let d = 0; d < 5; d++) {
-          const dayDate = addDays(weekMonday, d);
+        for (let i = 0; i < days.length; i++) {
+          if (weekBreakBefore(days, i)) appendGap();
+          const dayDate = days[i];
           const dateIso = isoDate(dayDate);
           const pastDay = isPastDateIso(dateIso);
           const key = cellKey(dateIso, hour);
@@ -1049,8 +1156,9 @@ const WeekPlanner = (() => {
         footCorner.className = "week-corner-foot";
         grid.appendChild(footCorner);
 
-        for (let d = 0; d < 5; d++) {
-          const dayDate = addDays(weekMonday, d);
+        for (let i = 0; i < days.length; i++) {
+          if (weekBreakBefore(days, i)) appendGap();
+          const dayDate = days[i];
           const dateIso = isoDate(dayDate);
           const dayItemsCount = items.filter((it) => (it.scheduled_at || "").slice(0, 10) === dateIso).length;
           const foot = document.createElement("div");
@@ -1063,7 +1171,10 @@ const WeekPlanner = (() => {
         }
       }
 
-      mount.appendChild(grid);
+      stage.appendChild(prevDay);
+      stage.appendChild(grid);
+      stage.appendChild(nextDay);
+      mount.appendChild(stage);
     }
 
     return {

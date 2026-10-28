@@ -82,6 +82,47 @@ main.layout-full {
   display: flex;
   flex-direction: column;
 }
+.week-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.week-day-arrow {
+  flex: 0 0 42px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--primary);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.week-day-arrow svg {
+  display: block;
+}
+.week-day-arrow:hover {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.week-week-gap {
+  pointer-events: none;
+  position: relative;
+}
+.week-week-gap::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in oklch, var(--border) 80%, transparent);
+  transform: translateX(-50%);
+}
 #weekMount[hidden],
 .admin-tab-pane[hidden] {
   display: none !important;
@@ -256,9 +297,10 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   grid-template-columns: 70px repeat(5, minmax(0, 1fr));
   grid-template-rows: 36px repeat(6, minmax(60px, 1fr));
   gap: 6px;
-  width: 100%;
+  width: auto;
   height: 100%;
   flex: 1;
+  min-width: 0;
   min-height: 0;
 }
 .week-grid.has-day-footers {

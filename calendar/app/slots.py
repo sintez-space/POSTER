@@ -35,3 +35,16 @@ def week_range(week_start: str):
         raise ValueError("week_start должен быть понедельником")
     fri = mon + timedelta(days=4)
     return mon.isoformat(), fri.isoformat() + "T23:59"
+
+
+def date_span(date_from: str, date_to: str):
+    try:
+        start = datetime.fromisoformat(date_from.strip()).date()
+        end = datetime.fromisoformat(date_to.strip()).date()
+    except ValueError as exc:
+        raise ValueError("дата: YYYY-MM-DD") from exc
+    if end < start:
+        raise ValueError("date_to раньше date_from")
+    if (end - start).days > 21:
+        raise ValueError("слишком длинный диапазон")
+    return start.isoformat(), end.isoformat() + "T23:59"

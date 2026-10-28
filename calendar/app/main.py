@@ -14,7 +14,7 @@ from PIL import Image, ImageOps
 from . import auth, db, demo_seed, export_poster
 from .limits import load_limits
 from .paths import AVATARS_DIR, CALENDAR_ROOT, UPLOADS_DIR, ensure_dirs
-from .slots import SLOT_HOURS, validate_scheduled_at, week_range
+from .slots import SLOT_HOURS, date_span, validate_scheduled_at, week_range
 
 app = FastAPI(title="POSTER Calendar", docs_url="/api/docs")
 app.add_middleware(GZipMiddleware, minimum_size=1024)
@@ -377,12 +377,22 @@ def api_calendar_month(year: int, month: int, calendar_session: str | None = Coo
 
 
 @app.get("/api/calendar/week")
-def api_calendar_week(week_start: str, calendar_session: str | None = Cookie(default=None)):
+def api_calendar_week(
+    week_start: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    calendar_session: str | None = Cookie(default=None),
+):
     user = auth.user_by_token(calendar_session)
     if not user:
         raise HTTPException(status_code=401, detail="нужен вход")
     try:
-        start_s, end_s = week_range(week_start)
+        if date_from and date_to:
+            start_s, end_s = date_span(date_from, date_to)
+        elif week_start:
+            start_s, end_s = week_range(week_start)
+        else:
+            raise ValueError("нужен week_start или date_from и date_to")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     with db.connect() as conn:
