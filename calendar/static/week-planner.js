@@ -1244,6 +1244,56 @@ const WeekPlanner = (() => {
       });
     }
 
+    function feedSequence() {
+      const placed = new Map();
+      const loose = [];
+      let minDay = "";
+      let maxDay = "";
+      for (const it of feedItems) {
+        const key = slotForItem(it);
+        if (!key) {
+          loose.push(it);
+          continue;
+        }
+        const mapKey = `${key}|${slotPartOf(it)}`;
+        if (placed.has(mapKey)) loose.push(it);
+        else placed.set(mapKey, it);
+        const day = key.slice(0, 10);
+        if (!minDay || day < minDay) minDay = day;
+        if (!maxDay || day > maxDay) maxDay = day;
+      }
+      const seq = [];
+      if (minDay && maxDay) {
+        let cursor = parseScheduled(`${minDay}T00:00`);
+        let guard = 0;
+        while (cursor && isoDate(cursor) <= maxDay && guard < 400) {
+          guard += 1;
+          if (!isWeekend(cursor)) {
+            const dateIso = isoDate(cursor);
+            const dayName = DAY_NAMES[(cursor.getDay() + 6) % 7] || "";
+            const shortDate = `${pad2(cursor.getDate())}.${pad2(cursor.getMonth() + 1)}`;
+            for (let hi = 0; hi < SLOT_HOURS.length; hi++) {
+              const hour = SLOT_HOURS[hi];
+              const key = cellKey(dateIso, hour);
+              for (const part of [1, 2]) {
+                const item = placed.get(`${key}|${part}`) || null;
+                const when = `${dayName} ${shortDate} ${SLOT_LABELS[hi]}`;
+                seq.push(
+                  item
+                    ? { item, hole: false }
+                    : { item: null, hole: true, title: `Свободный слот · ${when}`, caption: when }
+                );
+              }
+            }
+          }
+          cursor = addDays(cursor, 1);
+        }
+      }
+      loose.sort(feedSort);
+      for (const it of loose) seq.push({ item: it, hole: false });
+      return seq;
+    }
+
     function feedSort(a, b) {
       const sa = String((a && a.scheduled_at) || "");
       const sb = String((b && b.scheduled_at) || "");
@@ -1293,8 +1343,8 @@ const WeekPlanner = (() => {
         return;
       }
 
-      const ordered = [...feedItems].sort(feedSort);
-      if (!ordered.length) {
+      const sequence = feedSequence();
+      if (!sequence.length) {
         const empty = document.createElement("p");
         empty.className = "feed-empty";
         empty.textContent = "Нет материалов для ленты.";
@@ -1304,25 +1354,34 @@ const WeekPlanner = (() => {
       }
 
       const cols = 3;
-      const rows = Math.ceil(ordered.length / cols);
+      const rows = Math.ceil(sequence.length / cols);
       const cells = Array.from({ length: rows * cols }, () => null);
-      for (let i = 0; i < ordered.length; i++) {
+      for (let i = 0; i < sequence.length; i++) {
         const rowFromBottom = Math.floor(i / cols);
         const colFromRight = i % cols;
         const row = rows - 1 - rowFromBottom;
         const col = cols - 1 - colFromRight;
-        cells[row * cols + col] = ordered[i];
+        cells[row * cols + col] = sequence[i];
       }
 
       const grid = document.createElement("div");
       grid.className = "feed-grid";
-      for (const item of cells) {
-        if (!item) {
+      for (const cell of cells) {
+        if (!cell) {
           const gap = document.createElement("div");
           gap.className = "feed-cell is-empty";
           grid.appendChild(gap);
           continue;
         }
+        if (cell.hole) {
+          const hole = document.createElement("div");
+          hole.className = "feed-cell is-hole";
+          hole.title = cell.title;
+          hole.textContent = cell.caption || "";
+          grid.appendChild(hole);
+          continue;
+        }
+        const item = cell.item;
         const tile = document.createElement("button");
         tile.type = "button";
         tile.className = "feed-cell";
