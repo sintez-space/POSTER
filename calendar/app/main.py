@@ -43,6 +43,47 @@ class ViewAsMiddleware:
 
 
 app.add_middleware(ViewAsMiddleware)
+
+
+class ObserverWriteGuard:
+    """Наблюдатель ходит по тем же экранам, что админ, но запросы на изменение отсекаются."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("method") in ("POST", "PUT", "PATCH", "DELETE"):
+            path = scope.get("path") or ""
+            if path not in ("/api/login", "/api/register", "/api/logout"):
+                token = ""
+                for key, value in scope.get("headers") or []:
+                    if key.decode("latin1").lower() != "cookie":
+                        continue
+                    for part in value.decode("latin1").split(";"):
+                        part = part.strip()
+                        prefix = SESSION_COOKIE + "="
+                        if part.startswith(prefix):
+                            token = part[len(prefix) :]
+                            break
+                actor = auth.session_user(token) if token else None
+                if actor and actor.get("role") == "observer":
+                    body = json.dumps({"detail": "Наблюдатель может только смотреть"}, ensure_ascii=False).encode("utf-8")
+                    await send(
+                        {
+                            "type": "http.response.start",
+                            "status": 403,
+                            "headers": [
+                                (b"content-type", b"application/json; charset=utf-8"),
+                                (b"content-length", str(len(body)).encode()),
+                            ],
+                        }
+                    )
+                    await send({"type": "http.response.body", "body": body})
+                    return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(ObserverWriteGuard)
 STATIC = CALENDAR_ROOT / "static"
 SESSION_COOKIE = "calendar_session"
 MAX_AVATAR_BYTES = 100 * 1024
@@ -118,7 +159,7 @@ def index(calendar_session: str | None = Cookie(default=None)):
     user = auth.user_by_token(calendar_session)
     if not user:
         return RedirectResponse("/login.html", status_code=302)
-    if user["role"] == "admin":
+    if auth.is_staff(user):
         return RedirectResponse("/admin.html", status_code=302)
     return FileResponse(STATIC / "user.html")
 
@@ -133,7 +174,7 @@ def view_as_page(user: str = "", calendar_session: str | None = Cookie(default=N
     actor = auth.session_user(calendar_session)
     if not actor:
         return RedirectResponse("/login.html", status_code=302)
-    if actor["role"] != "admin":
+    if not auth.is_staff(actor):
         return RedirectResponse("/", status_code=302)
     if not auth.user_brief(user):
         raise HTTPException(status_code=404, detail="участник не найден")
@@ -145,7 +186,7 @@ def admin_page(calendar_session: str | None = Cookie(default=None)):
     user = auth.user_by_token(calendar_session)
     if not user:
         return RedirectResponse("/login.html", status_code=302)
-    if user["role"] != "admin":
+    if not auth.is_staff(user):
         return RedirectResponse("/", status_code=302)
     return FileResponse(STATIC / "admin.html")
 
@@ -203,7 +244,12 @@ def api_me(calendar_session: str | None = Cookie(default=None)):
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
     if not row:
         raise HTTPException(status_code=401, detail="нужен вход")
-    return db.row_to_user_profile(row)
+    prof = db.row_to_user_profile(row)
+    real = auth.session_user(calendar_session)
+    if real and real.get("role") == "observer":
+        prof["readonly"] = True
+        prof["actor_role"] = "observer"
+    return prof
 
 
 @app.put("/api/me/profile")
@@ -721,7 +767,7 @@ def api_my_submissions(calendar_session: str | None = Cookie(default=None)):
 @app.get("/api/admin/submissions")
 def api_admin_submissions(calendar_session: str | None = Cookie(default=None)):
     user = auth.user_by_token(calendar_session)
-    if not user or user["role"] != "admin":
+    if not auth.is_staff(user):
         raise HTTPException(status_code=403, detail="только админ")
     with db.connect() as conn:
         rows = conn.execute(
@@ -741,7 +787,7 @@ def api_admin_submissions(calendar_session: str | None = Cookie(default=None)):
 @app.get("/api/admin/authors")
 def api_admin_authors(calendar_session: str | None = Cookie(default=None)):
     user = auth.user_by_token(calendar_session)
-    if not user or user["role"] != "admin":
+    if not auth.is_staff(user):
         raise HTTPException(status_code=403, detail="только админ")
     with db.connect() as conn:
         u_rows = conn.execute(
@@ -783,13 +829,39 @@ def api_admin_authors(calendar_session: str | None = Cookie(default=None)):
 @app.get("/api/admin/pending-users")
 def api_admin_pending_users(calendar_session: str | None = Cookie(default=None)):
     user = auth.user_by_token(calendar_session)
-    if not user or user["role"] != "admin":
+    if not auth.is_staff(user):
         raise HTTPException(status_code=403, detail="только админ")
     with db.connect() as conn:
         rows = conn.execute(
             "SELECT * FROM users WHERE COALESCE(is_approved, 1) = 0 ORDER BY created_at DESC"
         ).fetchall()
     return [db.row_to_user_profile(r) for r in rows]
+
+
+@app.post("/api/admin/users/{user_id}/role")
+def api_admin_set_role(
+    user_id: str,
+    body: dict = Body(default_factory=dict),
+    calendar_session: str | None = Cookie(default=None),
+):
+    actor = auth.session_user(calendar_session)
+    if not auth.is_admin(actor):
+        raise HTTPException(status_code=403, detail="только админ")
+    if user_id == actor["id"]:
+        raise HTTPException(status_code=400, detail="свою роль менять нельзя")
+    role = str((body or {}).get("role") or "").strip()
+    if role not in ("admin", "user", "observer"):
+        raise HTTPException(status_code=400, detail="неизвестная роль")
+    with db.connect() as conn:
+        target = conn.execute("SELECT id, role FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="пользователь не найден")
+        if target["role"] == "admin" and role != "admin":
+            admins = conn.execute("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").fetchone()["n"]
+            if int(admins) <= 1:
+                raise HTTPException(status_code=400, detail="нельзя снять последнего админа")
+        conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+    return {"ok": True, "role": role}
 
 
 @app.post("/api/admin/users/{user_id}/approve")
@@ -1332,7 +1404,7 @@ def api_export_poster(calendar_session: str | None = Cookie(default=None)):
 @app.get("/api/admin/export-day-zip")
 def api_export_day_zip(date: str, calendar_session: str | None = Cookie(default=None)):
     user = auth.user_by_token(calendar_session)
-    if not user or user["role"] != "admin":
+    if not auth.is_staff(user):
         raise HTTPException(status_code=403, detail="только админ")
     zip_bytes, filename = export_poster.build_day_zip(date)
     return Response(

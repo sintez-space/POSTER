@@ -473,11 +473,17 @@
       CopyFields.populateCatalogSelect(copyRoot);
       CopyFields.applyTagRole(copyRoot);
       syncHeaderUser();
+      const lookOnly = !!(me.readonly || me.role === "observer");
+      if (lookOnly) {
+        document.getElementById("newPoolCardBtn").hidden = true;
+        document.getElementById("newPoolCarouselBtn").hidden = true;
+      }
       if (viewAsUserId()) {
         const bar = document.getElementById("viewAsBar");
         bar.hidden = false;
-        document.getElementById("viewAsText").textContent =
-          `Кабинет участника: ${me.display_name || me.login}. Календарь, карточки и профиль — как видит он. Изменения сразу попадают в общую систему.`;
+        document.getElementById("viewAsText").textContent = lookOnly
+          ? `Кабинет участника: ${me.display_name || me.login}. Только просмотр.`
+          : `Кабинет участника: ${me.display_name || me.login}. Календарь, карточки и профиль — как видит он. Изменения сразу попадают в общую систему.`;
         document.getElementById("logout").textContent = "Закрыть";
         document.title = `Кабинет: ${me.display_name || me.login}`;
       }
@@ -509,6 +515,7 @@
         onMoved: () => refreshAll(),
         resolveItem: (id) => poolItems.find((x) => x.id === id),
         canDrag: (item) => WeekPlanner.defaultCanDrag(item, me),
+        readOnly: lookOnly,
       });
       await refreshAll();
     }
@@ -974,7 +981,7 @@
       modalMediaKind = sub.media_kind || "video";
 
       const locked = WeekPlanner.isLocked(sub);
-      const readonly = (!sub.is_mine || locked) && me.role !== "admin";
+      const readonly = !!(me.readonly || me.role === "observer") || ((!sub.is_mine || locked) && me.role !== "admin");
       const inSlot = !!WeekPlanner.slotForItem(sub);
       CopyFields.submissionId = id;
       document.getElementById("subId").value = id;

@@ -8,6 +8,16 @@ from . import db
 
 view_as_id: ContextVar[str] = ContextVar("view_as_id", default="")
 
+STAFF_ROLES = ("admin", "observer")
+
+
+def is_admin(user) -> bool:
+    return bool(user) and user.get("role") == "admin"
+
+
+def is_staff(user) -> bool:
+    return bool(user) and user.get("role") in STAFF_ROLES
+
 
 def hash_password(password: str, salt: str | None = None) -> str:
     salt = salt or secrets.token_hex(16)
@@ -109,7 +119,7 @@ def user_by_token(token: str | None):
     if not real:
         return None
     target = (view_as_id.get() or "").strip()
-    if not target or target == real["id"] or real["role"] != "admin":
+    if not target or target == real["id"] or real["role"] not in STAFF_ROLES:
         return real
     other = user_brief(target)
     if not other:

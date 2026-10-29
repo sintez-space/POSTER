@@ -94,6 +94,35 @@ def init_db():
         _ensure_column(conn, "submissions", "slot_part", "INTEGER NOT NULL DEFAULT 1")
         _ensure_column(conn, "submissions", "media_kind", "TEXT NOT NULL DEFAULT 'video'")
         _ensure_column(conn, "submissions", "carousel_json", "TEXT NOT NULL DEFAULT '[]'")
+        _migrate_user_roles(conn)
+
+
+def _migrate_user_roles(conn: sqlite3.Connection):
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").fetchone()
+    ddl = (row["sql"] if row else "") or ""
+    if "observer" in ddl:
+        return
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    col_sql = ", ".join(cols)
+    conn.execute(
+        """
+        CREATE TABLE users__roles (
+            id TEXT PRIMARY KEY,
+            login TEXT UNIQUE NOT NULL,
+            email TEXT,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('admin', 'user', 'observer')),
+            display_name TEXT NOT NULL,
+            is_approved INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT,
+            profile_json TEXT NOT NULL DEFAULT '{}',
+            avatar_name TEXT
+        )
+        """
+    )
+    conn.execute(f"INSERT INTO users__roles ({col_sql}) SELECT {col_sql} FROM users")
+    conn.execute("DROP TABLE users")
+    conn.execute("ALTER TABLE users__roles RENAME TO users")
 
 
 def default_collab_from_profile(prof: dict) -> str:

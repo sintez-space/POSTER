@@ -2484,3 +2484,17 @@ table.admin th, table.admin td {
   color: var(--primary);
   margin-bottom: 2px;
 }
+.author-role-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.author-role-actions button {
+  font-size: 12px;
+}
+.observer-note {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}

@@ -292,6 +292,21 @@
   <script src="/static/week-planner.js"></script>
   <script>
     let me, limits, poolItems = [], authorsList = [], planner, modalSubId = null, draftNewState = null, participantNames = [];
+    let lookOnly = false;
+
+    function roleTitle(role) {
+      if (role === "admin") return "Админ";
+      if (role === "observer") return "Наблюдатель";
+      return "Автор";
+    }
+
+    async function setUserRole(userId, role) {
+      await api(`/api/admin/users/${userId}/role`, {
+        method: "POST",
+        body: JSON.stringify({ role }),
+      });
+      await renderAuthorsTab();
+    }
     let activeAdminTab = "calendar";
     let modalScheduledAt = "";
     let modalSlotPart = 1;
@@ -405,16 +420,22 @@
               <p>Имя: ${p.first_name || "—"} · Фамилия: ${p.last_name || "—"}</p>
             </div>
           </div>
-          <div style="display:flex;gap:8px;margin-top:4px">
+          ${
+            lookOnly
+              ? ""
+              : `<div style="display:flex;gap:8px;margin-top:4px">
             <button type="button" class="primary" data-approve="${u.id}" style="flex:1">Подтвердить (Апрув)</button>
             <button type="button" class="outline" data-reject="${u.id}" style="color:var(--destructive)">Отклонить</button>
-          </div>`;
-        card.querySelector("[data-approve]").onclick = async () => {
+          </div>`
+          }`;
+        const approveBtn = card.querySelector("[data-approve]");
+        if (approveBtn) approveBtn.onclick = async () => {
           await api(`/api/admin/users/${u.id}/approve`, { method: "POST" });
           await updateAdminKpis();
           await renderPendingTab();
         };
-        card.querySelector("[data-reject]").onclick = async () => {
+        const rejectBtn = card.querySelector("[data-reject]");
+        if (rejectBtn) rejectBtn.onclick = async () => {
           await api(`/api/admin/users/${u.id}`, { method: "DELETE" });
           await updateAdminKpis();
           await renderPendingTab();
@@ -475,12 +496,12 @@
                   : ""
               }
               ${
-                key && key !== "unknown"
+                !lookOnly && key && key !== "unknown"
                   ? `<button type="button" class="outline" data-u-pwd="${key}" style="padding:4px 10px;font-size:11px">Сменить пароль</button>`
                   : ""
               }
               ${
-                key && key !== "unknown" && key !== me.id
+                !lookOnly && key && key !== "unknown" && key !== me.id
                   ? `<button type="button" class="outline" data-u-del="${key}" style="padding:4px 10px;font-size:11px;color:var(--destructive)">Удалить юзера</button>`
                   : ""
               }
@@ -588,7 +609,7 @@
             ${avHtml}
             <div class="author-info-meta">
               <h3>${au.display_name || au.login}</h3>
-              <p>Логин: <strong>@${au.login}</strong> · Роль: ${au.role === "admin" ? "Админ" : "Автор"}</p>
+              <p>Логин: <strong>@${au.login}</strong> · Роль: ${roleTitle(au.role)}</p>
               <p>Карточек всего: <strong>${st.total}</strong> (в календаре: ${st.scheduled}, зафиксировано: ${st.approved}, в пуле: ${st.unscheduled})</p>
             </div>
           </div>
@@ -624,24 +645,49 @@
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;padding-top:10px;border-top:1px solid var(--border)">
             <button type="button" class="outline" data-au-view="${au.id}" style="flex:1;font-size:12px" title="Открыть кабинет этого участника в новой вкладке">Кабинет</button>
-            <button type="button" class="outline" data-au-pwd="${au.id}" style="flex:1;font-size:12px">Сменить пароль</button>
             ${
-              au.id !== me.id
+              lookOnly
+                ? ""
+                : `<button type="button" class="outline" data-au-pwd="${au.id}" style="flex:1;font-size:12px">Сменить пароль</button>`
+            }
+            ${
+              !lookOnly && au.id !== me.id
                 ? `<button type="button" class="outline" data-au-del="${au.id}" style="color:var(--destructive);font-size:12px">Удалить юзера</button>`
                 : ""
             }
-          </div>`;
+          </div>
+          ${
+            !lookOnly && au.id !== me.id
+              ? `<div class="author-role-actions">
+                  ${au.role !== "admin" ? `<button type="button" class="outline" data-au-role="admin">Сделать админом</button>` : ""}
+                  ${au.role !== "observer" ? `<button type="button" class="outline" data-au-role="observer">Наблюдатель</button>` : ""}
+                  ${au.role !== "user" ? `<button type="button" class="outline" data-au-role="user">Сделать автором</button>` : ""}
+                </div>`
+              : ""
+          }`;
 
         card.querySelector("[data-au-view]").onclick = () => {
           window.open(`/view-as?user=${encodeURIComponent(au.id)}`, "_blank");
         };
-        card.querySelector("[data-au-pwd]").onclick = () => {
-          WeekPlanner.openPasswordModal({
-            userId: au.id,
-            userName: au.display_name || au.login,
-            isSelf: au.id === me.id,
-          });
-        };
+        const auPwd = card.querySelector("[data-au-pwd]");
+        if (auPwd) {
+          auPwd.onclick = () => {
+            WeekPlanner.openPasswordModal({
+              userId: au.id,
+              userName: au.display_name || au.login,
+              isSelf: au.id === me.id,
+            });
+          };
+        }
+        card.querySelectorAll("[data-au-role]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              await setUserRole(au.id, btn.getAttribute("data-au-role"));
+            } catch (err) {
+              alert(err.message || String(err));
+            }
+          };
+        });
         const auDelBtn = card.querySelector("[data-au-del]");
         if (auDelBtn) {
           auDelBtn.onclick = () => {
@@ -966,18 +1012,18 @@
       document.getElementById("subCover").value = "";
       document.getElementById("subCarousel").value = "";
 
-      setPreview(sub, locked);
-      setAdminReadonly(locked);
-      renderModalSlotPicker(locked);
+      setPreview(sub, locked || lookOnly);
+      setAdminReadonly(locked || lookOnly);
+      renderModalSlotPicker(locked || lookOnly);
       document.getElementById("modalErr").textContent = "";
 
       const appBtn = document.getElementById("approveSlotBtn");
       const clrBtn = document.getElementById("clearSlotBtn");
-      appBtn.hidden = !inSlot;
+      appBtn.hidden = lookOnly || !inSlot;
       appBtn.textContent = locked ? "Снять фиксацию слота" : "Подтвердить слот";
-      clrBtn.hidden = !inSlot || locked;
-      document.getElementById("deleteSubBtn").hidden = locked;
-      document.getElementById("duplicateBtn").hidden = false;
+      clrBtn.hidden = lookOnly || !inSlot || locked;
+      document.getElementById("deleteSubBtn").hidden = lookOnly || locked;
+      document.getElementById("duplicateBtn").hidden = lookOnly;
 
       modal.classList.add("open");
     }
@@ -1171,6 +1217,7 @@
       const bar = document.getElementById("catalogAdminBar");
       if (!bar) return;
       bar.innerHTML = "";
+      if (lookOnly) return;
       const label = document.createElement("span");
       label.className = "catalog-admin-label";
       label.textContent = "Общие теги";
@@ -1247,6 +1294,15 @@
 
     (async () => {
       me = await api("/api/me");
+      lookOnly = me.role === "observer" || !!me.readonly;
+      if (lookOnly) {
+        document.getElementById("exportBtn").hidden = true;
+        document.getElementById("changeMyPwdBtn").hidden = true;
+        const note = document.createElement("p");
+        note.className = "observer-note";
+        note.textContent = "Наблюдатель: всё видно, менять нельзя.";
+        document.querySelector("main.layout-full").prepend(note);
+      }
       limits = await api("/api/limits");
       CopyFields.setViewer(me);
       try { await CopyFields.ensureOwnerTags(me.id); } catch (_) {}
@@ -1286,6 +1342,7 @@
         onMoved: () => refreshPool(),
         resolveItem: (id) => poolItems.find((x) => x.id === id),
         canDrag: (item) => WeekPlanner.defaultCanDrag(item, me),
+        readOnly: lookOnly,
       });
 
       await loadAll();

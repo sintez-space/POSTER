@@ -158,22 +158,30 @@ const WeekPlanner = (() => {
     return item && (item.status === "approved" || item.status === "exported");
   }
 
+  function isStaff(me) {
+    return !!(me && (me.role === "admin" || me.role === "observer" || me.actor_role === "observer"));
+  }
+
+  function isLookOnly(me) {
+    return !!(me && (me.readonly || me.role === "observer" || me.actor_role === "observer"));
+  }
+
   function defaultCanDrag(item, me) {
-    if (!item || !me) return false;
+    if (!item || !me || isLookOnly(me)) return false;
     if (isLocked(item)) return false;
     if (me.role === "admin") return true;
     return !!item.is_mine;
   }
 
   function canClearSlot(item, me) {
-    if (!item || !me || !slotForItem(item)) return false;
+    if (!item || !me || isLookOnly(me) || !slotForItem(item)) return false;
     if (isLocked(item)) return false;
     if (me.role === "admin") return true;
     return !!item.is_mine;
   }
 
   function canDeleteItem(item, me) {
-    if (!item || !me) return false;
+    if (!item || !me || isLookOnly(me)) return false;
     if (isLocked(item)) return false;
     if (me.role === "admin") return true;
     return !!item.is_mine;
@@ -482,7 +490,7 @@ const WeekPlanner = (() => {
     const body = wrap.querySelector("#slotPickerBody");
     body.innerHTML = "";
 
-    const isAdmin = me && me.role === "admin";
+    const isAdmin = isStaff(me);
     const freeItems = (poolItems || []).filter((it) => {
       if (slotForItem(it)) return false;
       if (!isAdmin && !it.is_mine) return false;
@@ -563,7 +571,7 @@ const WeekPlanner = (() => {
     } = opts;
 
     const el = document.createElement("div");
-    const foreign = item.is_mine === false && me.role !== "admin";
+    const foreign = item.is_mine === false && !isStaff(me);
     const locked = isLocked(item);
     const cardTags = tagsOfItem(item);
     const sTag = cardTags[0] || "";
@@ -720,7 +728,7 @@ const WeekPlanner = (() => {
   function renderAuthorPool(mount, allItems, opts) {
     if (!mount) return;
     mount.innerHTML = "";
-    const onlyMine = opts.onlyMineInPool !== false && opts.me && opts.me.role !== "admin";
+    const onlyMine = opts.onlyMineInPool !== false && opts.me && !isStaff(opts.me);
     const unscheduled = (allItems || []).filter((it) => {
       if (slotForItem(it)) return false;
       if (onlyMine && !it.is_mine) return false;
@@ -846,6 +854,7 @@ const WeekPlanner = (() => {
       canDrag = (item) => defaultCanDrag(item, me),
       statusLabels = DEFAULT_STATUS,
       resolveItem,
+      readOnly = false,
     } = options;
 
     const FEED_ORIGIN = "2026-10-30";
@@ -1156,7 +1165,7 @@ const WeekPlanner = (() => {
     }
 
     async function toggleApprove(item) {
-      if (me.role !== "admin") return;
+      if (me.role !== "admin" || isLookOnly(me)) return;
       const nextStatus = isLocked(item) ? "submitted" : "approved";
       try {
         await api(`/api/submissions/${item.id}`, {
@@ -1529,7 +1538,7 @@ const WeekPlanner = (() => {
         renderFeed();
         return;
       }
-      const isAdmin = me && me.role === "admin";
+      const isAdmin = isStaff(me);
       const days = currentDays();
       const stage = document.createElement("div");
       stage.className = "week-stage";
@@ -1627,7 +1636,7 @@ const WeekPlanner = (() => {
               })
             );
             if (!itemMatchesFilter(item1)) sub1.firstChild.classList.add("is-filter-dim");
-          } else {
+          } else if (!readOnly) {
             const add1 = document.createElement("button");
             add1.type = "button";
             add1.className = "week-add";
@@ -1643,7 +1652,7 @@ const WeekPlanner = (() => {
             };
             sub1.appendChild(add1);
           }
-          if (!pastDay) setupSubslotDrop(sub1, key, 1);
+          if (!pastDay && !readOnly) setupSubslotDrop(sub1, key, 1);
 
           const sub2 = document.createElement("div");
           sub2.className = "week-subslot subslot-carousel" + (item2 || leftIsCarousel ? " is-filled" : " is-mini");
@@ -1661,7 +1670,7 @@ const WeekPlanner = (() => {
               })
             );
             if (!itemMatchesFilter(item2)) sub2.firstChild.classList.add("is-filter-dim");
-          } else {
+          } else if (!readOnly) {
             const add2 = document.createElement("button");
             add2.type = "button";
             add2.className = "week-add-carousel";
@@ -1684,7 +1693,7 @@ const WeekPlanner = (() => {
             };
             sub2.appendChild(add2);
           }
-          if (!pastDay) setupSubslotDrop(sub2, key, 2);
+          if (!pastDay && !readOnly) setupSubslotDrop(sub2, key, 2);
 
           cell.appendChild(sub1);
           cell.appendChild(sub2);
