@@ -752,6 +752,10 @@ const WeekPlanner = (() => {
     }
 
     if (!unscheduled.length) {
+      const empty = document.createElement("p");
+      empty.className = "side-pool-empty";
+      empty.textContent = "Нет карточек вне календаря";
+      mount.appendChild(empty);
       return;
     }
 
@@ -850,6 +854,7 @@ const WeekPlanner = (() => {
       filterBar,
       userFilter = false,
       feedToolsMount = null,
+      viewToggleMount = null,
       ignoreSavedView = false,
       getFilterIndex,
       me,
@@ -930,6 +935,10 @@ const WeekPlanner = (() => {
       resetBtn.type = "button";
       resetBtn.className = "outline";
       resetBtn.textContent = "Сбросить";
+      const mineBtn = document.createElement("button");
+      mineBtn.type = "button";
+      mineBtn.className = "outline";
+      mineBtn.textContent = "Мои работы";
       wrap.appendChild(input);
       wrap.appendChild(suggest);
       const viewToggle = document.createElement("div");
@@ -950,15 +959,17 @@ const WeekPlanner = (() => {
       viewToggle.appendChild(feedBtn);
       paintViewToggle();
 
+      if (viewToggleMount) viewToggleMount.replaceChildren(viewToggle);
       if (userFilter) {
         filterBar.classList.add("is-user-filter");
-        filterBar.appendChild(resetBtn);
-        filterBar.appendChild(wrap);
-        filterBar.appendChild(chipsEl);
+        const actions = document.createElement("div");
+        actions.className = "side-filter-actions";
+        actions.append(resetBtn, mineBtn);
+        filterBar.append(actions, wrap, chipsEl);
       } else {
         filterBar.appendChild(chipsEl);
         filterBar.appendChild(wrap);
-        filterBar.appendChild(viewToggle);
+        if (!viewToggleMount) filterBar.appendChild(viewToggle);
         filterBar.appendChild(resetBtn);
       }
 
@@ -1031,16 +1042,13 @@ const WeekPlanner = (() => {
 
       function refreshSuggest() {
         const q = input.value.trim().replace(/^#+/, "").toLowerCase();
-        if (!q) {
-          hideSuggest();
-          return;
-        }
         const src = indexOfFilter();
         const pool = src.tags.concat(src.names);
-        suggestItems = pool
-          .filter((item) => item.name.toLowerCase().startsWith(q))
-          .filter((item) => !filterChips.some((c) => c.kind === item.kind && c.name.toLowerCase() === item.name.toLowerCase()))
-          .slice(0, 8);
+        suggestItems = pool.filter((item) => {
+          if (filterChips.some((c) => c.kind === item.kind && c.name.toLowerCase() === item.name.toLowerCase())) return false;
+          if (!q) return true;
+          return item.name.toLowerCase().includes(q);
+        });
         activeIdx = 0;
         paintSuggest();
       }
@@ -1092,6 +1100,15 @@ const WeekPlanner = (() => {
       resetBtn.onclick = () => {
         if (!filterChips.length && !input.value) return;
         filterChips = [];
+        input.value = "";
+        hideSuggest();
+        paintChips();
+        render();
+      };
+      mineBtn.onclick = () => {
+        const name = String((me && (me.display_name || me.login)) || "").trim();
+        if (!name) return;
+        filterChips = [{ kind: "name", name }];
         input.value = "";
         hideSuggest();
         paintChips();
@@ -1454,8 +1471,10 @@ const WeekPlanner = (() => {
       const tools = document.createElement("div");
       tools.className = "feed-tools";
       tools.append(nets, scaleLabel);
-      if (feedToolsMount) feedToolsMount.replaceChildren(tools);
-      else board.appendChild(tools);
+      if (feedToolsMount) {
+        feedToolsMount.replaceChildren(tools);
+        feedToolsMount.hidden = !!mount.hidden;
+      } else board.appendChild(tools);
 
       if (feedNet !== "ig") {
         const empty = document.createElement("p");
@@ -1576,6 +1595,7 @@ const WeekPlanner = (() => {
         renderFeed();
         return;
       }
+      if (feedToolsMount) feedToolsMount.hidden = true;
       const isAdmin = isStaff(me);
       const days = currentDays();
       const stage = document.createElement("div");

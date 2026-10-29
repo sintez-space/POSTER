@@ -11,49 +11,48 @@
     <span id="viewAsText">Кабинет участника</span>
     <button type="button" class="outline" id="viewAsClose">Закрыть вкладку</button>
   </div>
-  <header class="top-dashboard-bar">
-    <div class="mini-cal-wrap">
-      <div class="mini-cal-box" id="miniMonthMount" title="Нажмите на день — сетка начнётся с него"></div>
-      <div class="mini-cal-week-nav">
-        <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
-        <strong id="weekLabel"></strong>
-        <button type="button" id="next" aria-label="Следующая неделя">→</button>
-      </div>
-    </div>
-
-    <div class="top-big-create-col">
-      <button type="button" class="big-action-btn" id="newPoolCardBtn">
-        <span class="big-icon">+</span>
-        <span>Рилс</span>
-      </button>
-      <button type="button" class="big-action-btn" id="newPoolCarouselBtn">
-        <span class="big-icon">+</span>
-        <span>Карусель</span>
-      </button>
-    </div>
-
-    <div class="top-pool-area" id="poolMount" title="Нераспределённые карточки (перетащите в расписание или обратно сюда)"></div>
-
-    <div class="top-right-account-col">
+  <div class="app-frame">
+    <aside class="side-rail">
       <button type="button" class="big-profile-btn" id="openProfileBtn">
         <img id="headerAvatar" alt="" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
         <span id="hello">Профиль</span>
       </button>
-      <button type="button" class="outline logout-under-btn" id="logout">Выход</button>
-    </div>
-  </header>
 
-  <main class="layout-full">
-    <div class="user-view-tabs">
-      <button type="button" id="userTabCal" class="active">Календарь</button>
-      <button type="button" id="userTabWorks">Мои работы</button>
-      <button type="button" id="userTabFeed">Лента</button>
-      <div id="userFeedTools" class="user-feed-tools" hidden></div>
-    </div>
-    <div class="cal-filter-bar" id="calFilterBar"></div>
-    <div id="weekMount"></div>
-    <div id="galleryMount" class="gallery-pane" hidden>
-      <div class="gallery-filters">
+      <div class="mini-cal-wrap">
+        <div class="mini-cal-box" id="miniMonthMount" title="Нажмите на день — сетка начнётся с него"></div>
+      </div>
+
+      <div class="side-create-row">
+        <button type="button" class="big-action-btn" id="newPoolCardBtn">
+          <span class="big-icon">+</span>
+          <span>Рилс</span>
+        </button>
+        <button type="button" class="big-action-btn" id="newPoolCarouselBtn">
+          <span class="big-icon">+</span>
+          <span>Карусель</span>
+        </button>
+      </div>
+
+      <div class="user-view-tabs">
+        <button type="button" id="userTabCal" class="active">Календарь</button>
+        <button type="button" id="userTabWorks">Галерея</button>
+        <button type="button" id="userTabFeed">Лента</button>
+      </div>
+
+      <div class="cal-filter-bar" id="calFilterBar"></div>
+
+      <div class="side-pool" id="poolMount" title="Нераспределённые карточки"></div>
+    </aside>
+
+    <main class="layout-full">
+      <div class="stage-toolbar" id="calSettings">
+        <div class="mini-cal-week-nav">
+          <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
+          <strong id="weekLabel"></strong>
+          <button type="button" id="next" aria-label="Следующая неделя">→</button>
+        </div>
+      </div>
+      <div class="stage-toolbar gallery-filters" id="galleryFilters" hidden>
         <label>Тема <input id="galTheme" type="search" placeholder="Текст карточки"></label>
         <label>Тег <select id="galTag"><option value="">Все теги</option></select></label>
         <label>Загружено с <input id="galUpFrom" type="date"></label>
@@ -61,10 +60,14 @@
         <label>Публикация с <input id="galPubFrom" type="date"></label>
         <label>по <input id="galPubTo" type="date"></label>
       </div>
-      <p class="tag-bubble-hint">По умолчанию карточки собраны по тегам.</p>
-      <div id="galleryGrid" class="gallery-grid"></div>
-    </div>
-  </main>
+      <div id="userFeedTools" class="stage-toolbar user-feed-tools" hidden></div>
+      <div id="weekMount"></div>
+      <div id="galleryMount" class="gallery-pane" hidden>
+        <p class="tag-bubble-hint">По умолчанию карточки собраны по тегам.</p>
+        <div id="galleryGrid" class="gallery-grid"></div>
+      </div>
+    </main>
+  </div>
 
   <!-- Модалка карточки видео / карусели -->
   <div class="modal-backdrop" id="modal">
@@ -359,7 +362,7 @@
       <div class="modal-footer">
         <button type="button" class="outline" id="userChangePwdBtn">Сменить пароль</button>
         <span class="footer-spacer"></span>
-        <button type="button" class="ghost" id="closeProfileBtn">Закрыть</button>
+        <button type="button" class="ghost" id="closeProfileBtn">Выйти</button>
         <button type="button" class="primary" id="saveProfileBtn">Сохранить профиль</button>
       </div>
     </div>
@@ -488,7 +491,7 @@
         document.getElementById("viewAsText").textContent = lookOnly
           ? `Кабинет участника: ${me.display_name || me.login}. Только просмотр.`
           : `Кабинет участника: ${me.display_name || me.login}. Календарь, карточки и профиль — как видит он. Изменения сразу попадают в общую систему.`;
-        document.getElementById("logout").textContent = "Закрыть";
+        document.getElementById("closeProfileBtn").textContent = "Закрыть вкладку";
         document.title = `Кабинет: ${me.display_name || me.login}`;
       }
 
@@ -645,7 +648,8 @@
       document.getElementById("userTabCal").classList.toggle("active", tab === "cal");
       document.getElementById("userTabWorks").classList.toggle("active", tab === "works");
       document.getElementById("userTabFeed").classList.toggle("active", tab === "feed");
-      document.getElementById("calFilterBar").hidden = tab === "works";
+      document.getElementById("calSettings").hidden = tab !== "cal";
+      document.getElementById("galleryFilters").hidden = tab !== "works";
       document.getElementById("weekMount").hidden = tab === "works";
       document.getElementById("galleryMount").hidden = tab !== "works";
       document.getElementById("userFeedTools").hidden = tab !== "feed";
@@ -1318,7 +1322,14 @@
       WeekPlanner.openPasswordModal({ isSelf: true });
     };
     const closeProfileModal = () => profileModal.classList.remove("open");
-    document.getElementById("closeProfileBtn").onclick = closeProfileModal;
+    document.getElementById("closeProfileBtn").onclick = async () => {
+      if (viewAsUserId()) {
+        window.close();
+        return;
+      }
+      await api("/api/logout", { method: "POST" });
+      location.href = "/login.html";
+    };
     document.getElementById("closeProfileTop").onclick = closeProfileModal;
     profileModal.addEventListener("click", (e) => { if (e.target === profileModal) closeProfileModal(); });
 
@@ -1373,14 +1384,6 @@
     document.getElementById("closeBtnTop").onclick = closeModal;
     modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
     document.getElementById("viewAsClose").onclick = () => window.close();
-    document.getElementById("logout").onclick = async () => {
-      if (viewAsUserId()) {
-        window.close();
-        return;
-      }
-      await api("/api/logout", { method: "POST" });
-      location.href = "/login.html";
-    };
 
     init().catch(() => location.href = "/login.html");
   </script>

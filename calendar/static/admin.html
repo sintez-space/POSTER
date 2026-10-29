@@ -7,77 +7,76 @@
   <link rel="stylesheet" href="/static/common.css">
 </head>
 <body>
-  <header class="top-dashboard-bar">
-    <!-- 1. Слева первый: мини-календарь на месяц + переключение недель -->
-    <div class="mini-cal-wrap">
-      <div class="mini-cal-box" id="miniMonthMount" title="Нажмите на день — сетка начнётся с него"></div>
-      <div class="mini-cal-week-nav">
-        <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
-        <strong id="weekLabel"></strong>
-        <button type="button" id="next" aria-label="Следующая неделя">→</button>
+  <div class="app-frame">
+    <aside class="side-rail">
+      <div class="side-account">
+        <button type="button" class="primary" id="exportBtn">Экспорт в POSTER</button>
+        <button type="button" class="outline" id="changeMyPwdBtn">Пароль</button>
+        <button type="button" class="outline" id="logout">Выйти</button>
       </div>
-    </div>
 
-    <!-- 2. Квадратные во всю высоту строки кнопки режимов -->
-    <div class="admin-square-tabs">
-      <button type="button" class="admin-square-tab-btn active" id="tabCalendarBtn">
-        <span>Календарь</span>
-        <span class="tab-sub">расписание</span>
-      </button>
-      <button type="button" class="admin-square-tab-btn" id="tabUsersBtn">
-        <span>Материалы</span>
-        <span class="tab-sub">юзеры</span>
-      </button>
-      <button type="button" class="admin-square-tab-btn" id="tabAuthorsBtn">
-        <span>Авторы</span>
-        <span class="tab-sub">карточки авторов</span>
-      </button>
-      <button type="button" class="admin-square-tab-btn" id="tabPendingBtn">
-        <span>Заявки</span>
-        <span class="tab-sub" id="pendingBadge">0 новых</span>
-      </button>
-    </div>
+      <div class="mini-cal-wrap">
+        <div class="mini-cal-box" id="miniMonthMount" title="Нажмите на день — сетка начнётся с него"></div>
+      </div>
 
-    <!-- 3. Мини-дашборд: 5 крупных инфо-карточек -->
-    <div class="admin-kpi-strip">
-      <div class="admin-kpi-card">
-        <span class="admin-kpi-label">Количество юзеров</span>
-        <span class="admin-kpi-val" id="kpiUsers">0</span>
+      <div class="admin-square-tabs">
+        <button type="button" class="admin-square-tab-btn active" id="tabCalendarBtn">
+          <span>Календарь</span>
+          <span class="tab-sub">расписание</span>
+        </button>
+        <button type="button" class="admin-square-tab-btn" id="tabUsersBtn">
+          <span>Материалы</span>
+          <span class="tab-sub">юзеры</span>
+        </button>
+        <button type="button" class="admin-square-tab-btn" id="tabAuthorsBtn">
+          <span>Авторы</span>
+          <span class="tab-sub">карточки</span>
+        </button>
+        <button type="button" class="admin-square-tab-btn" id="tabPendingBtn">
+          <span>Заявки</span>
+          <span class="tab-sub" id="pendingBadge">0 новых</span>
+        </button>
       </div>
-      <div class="admin-kpi-card">
-        <span class="admin-kpi-label">Количество видео</span>
-        <span class="admin-kpi-val" id="kpiVideos">0</span>
-      </div>
-      <div class="admin-kpi-card">
-        <span class="admin-kpi-label">Количество каруселей</span>
-        <span class="admin-kpi-val" id="kpiCarousels">0</span>
-      </div>
-      <div class="admin-kpi-card">
-        <span class="admin-kpi-label">Опубликованных</span>
-        <span class="admin-kpi-val" id="kpiPublished">0</span>
-      </div>
-      <div class="admin-kpi-card">
-        <span class="admin-kpi-label">Свободных материалов</span>
-        <span class="admin-kpi-val" id="kpiFree">0</span>
-      </div>
-    </div>
 
-    <!-- 4. Справа: Экспорт + Пароль + Выход -->
-    <div class="top-right-account-col">
-      <button type="button" class="primary big-profile-btn" id="exportBtn" style="border:none">
-        <span>Экспорт в POSTER</span>
-      </button>
-      <button type="button" class="outline logout-under-btn" id="changeMyPwdBtn">Пароль</button>
-      <button type="button" class="outline logout-under-btn" id="logout">Выход</button>
-    </div>
-  </header>
+      <div class="cal-filter-bar" id="calFilterBar"></div>
+      <div class="side-pool" id="poolMount" title="Нераспределённые карточки"></div>
+    </aside>
 
-  <main class="layout-full">
-    <p id="exportMsg" class="text-primary" style="margin:0 0 4px" hidden></p>
-    <!-- Вкладка 1: Календарь -->
-    <div class="catalog-admin-bar" id="catalogAdminBar"></div>
-    <div class="cal-filter-bar" id="calFilterBar"></div>
-    <div id="weekMount"></div>
+    <main class="layout-full">
+      <div class="admin-kpi-strip">
+        <div class="admin-kpi-card">
+          <span class="admin-kpi-label">Количество юзеров</span>
+          <span class="admin-kpi-val" id="kpiUsers">0</span>
+        </div>
+        <div class="admin-kpi-card">
+          <span class="admin-kpi-label">Количество видео</span>
+          <span class="admin-kpi-val" id="kpiVideos">0</span>
+        </div>
+        <div class="admin-kpi-card">
+          <span class="admin-kpi-label">Количество каруселей</span>
+          <span class="admin-kpi-val" id="kpiCarousels">0</span>
+        </div>
+        <div class="admin-kpi-card">
+          <span class="admin-kpi-label">Опубликованных</span>
+          <span class="admin-kpi-val" id="kpiPublished">0</span>
+        </div>
+        <div class="admin-kpi-card">
+          <span class="admin-kpi-label">Свободных материалов</span>
+          <span class="admin-kpi-val" id="kpiFree">0</span>
+        </div>
+      </div>
+      <div class="stage-toolbar" id="calSettings">
+        <div class="mini-cal-week-nav">
+          <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
+          <strong id="weekLabel"></strong>
+          <button type="button" id="next" aria-label="Следующая неделя">→</button>
+        </div>
+        <div id="adminViewToggle"></div>
+        <div id="adminFeedTools" class="user-feed-tools"></div>
+      </div>
+      <p id="exportMsg" class="text-primary" style="margin:0 0 4px" hidden></p>
+      <div class="catalog-admin-bar" id="catalogAdminBar"></div>
+      <div id="weekMount"></div>
     <!-- Вкладка 2: Юзеры (карточки по юзерам: В календаре / Вне календаря) -->
     <div id="usersTabMount" class="admin-tab-pane" hidden></div>
     <!-- Вкладка 3: Авторы (профили, ники соцсетей, облака тегов и отметок) -->
@@ -85,6 +84,7 @@
     <!-- Вкладка 4: Заявки на регистрацию -->
     <div id="pendingTabMount" class="admin-tab-pane" hidden></div>
   </main>
+  </div>
 
   <div class="modal-backdrop" id="modal">
     <div class="modal modal-wide" id="modalPanel" role="dialog" aria-labelledby="modalTitle">
@@ -379,6 +379,7 @@
 
       document.getElementById("weekMount").hidden = tab !== "calendar";
       document.getElementById("calFilterBar").hidden = tab !== "calendar";
+      document.getElementById("calSettings").hidden = tab !== "calendar";
       document.getElementById("catalogAdminBar").hidden = tab !== "calendar";
       document.getElementById("usersTabMount").hidden = tab !== "users";
       document.getElementById("authorsTabMount").hidden = tab !== "authors";
@@ -1069,6 +1070,7 @@
     async function refreshPool() {
       poolItems = await api("/api/admin/submissions");
       for (const s of poolItems) s.is_mine = true;
+      WeekPlanner.renderAuthorPool(document.getElementById("poolMount"), poolItems, cardOpts());
       await updateAdminKpis();
       if (activeAdminTab === "users") renderUsersTab();
       if (activeAdminTab === "authors") await renderAuthorsTab();
@@ -1338,6 +1340,9 @@
         nextBtn: document.getElementById("next"),
         miniMonthMount: document.getElementById("miniMonthMount"),
         filterBar: document.getElementById("calFilterBar"),
+        userFilter: true,
+        viewToggleMount: document.getElementById("adminViewToggle"),
+        feedToolsMount: document.getElementById("adminFeedTools"),
         getFilterIndex: filterIndex,
         me,
         statusLabels: STATUS_RU,
