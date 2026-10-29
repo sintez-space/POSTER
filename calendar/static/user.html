@@ -592,7 +592,7 @@
       for (const it of cards) {
         const tile = document.createElement("button");
         tile.type = "button";
-        tile.className = "gallery-card";
+        tile.className = "gallery-card" + (it.media_kind === "carousel" ? " is-carousel" : "");
         const slides = Array.isArray(it.carousel_files) ? it.carousel_files.length : 0;
         const hasCover = !!(it.cover_name || slides > 0);
         const tags = WeekPlanner.tagsOfItem(it)

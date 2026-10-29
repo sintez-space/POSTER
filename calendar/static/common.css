@@ -1860,6 +1860,7 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
   align-content: start;
+  align-items: start;
   padding-bottom: 8px;
 }
 .gallery-card {
@@ -1874,16 +1875,23 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   color: var(--foreground);
   cursor: pointer;
 }
-.gallery-card img,
+.gallery-card img {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: color-mix(in oklch, var(--muted) 50%, var(--background));
+}
 .gallery-ph {
   width: 100%;
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
+  aspect-ratio: 9 / 16;
   display: flex;
   align-items: center;
   justify-content: center;
   background: color-mix(in oklch, var(--muted) 50%, var(--background));
   color: var(--muted-foreground);
+}
+.gallery-card.is-carousel .gallery-ph {
+  aspect-ratio: 1 / 1;
 }
 .gallery-card-body {
   padding: 8px;
