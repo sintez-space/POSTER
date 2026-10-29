@@ -19,7 +19,12 @@
       </button>
 
       <div class="mini-cal-wrap">
-        <div class="mini-cal-box" id="miniMonthMount" title="Нажмите на день — сетка начнётся с него"></div>
+        <div class="mini-cal-box" id="miniMonthMount" title="Неделя с понедельника по пятницу"></div>
+        <div class="mini-cal-week-nav">
+          <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
+          <strong id="weekLabel"></strong>
+          <button type="button" id="next" aria-label="Следующая неделя">→</button>
+        </div>
       </div>
 
       <div class="side-create-row">
@@ -34,9 +39,9 @@
       </div>
 
       <div class="user-view-tabs">
-        <button type="button" id="userTabCal" class="active">Календарь</button>
-        <button type="button" id="userTabWorks">Галерея</button>
-        <button type="button" id="userTabFeed">Лента</button>
+        <button type="button" id="userTabCal" class="active" title="Календарь" aria-label="Календарь"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        <button type="button" id="userTabWorks" title="Галерея" aria-label="Галерея"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+        <button type="button" id="userTabFeed" title="Лента" aria-label="Лента"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1" fill="currentColor"/><rect x="10" y="4" width="5" height="16" rx="1" fill="currentColor" opacity=".72"/><rect x="17" y="4" width="4" height="16" rx="1" fill="currentColor" opacity=".45"/></svg></button>
       </div>
 
       <div class="cal-filter-bar" id="calFilterBar"></div>
@@ -45,13 +50,6 @@
     </aside>
 
     <main class="layout-full">
-      <div class="stage-toolbar" id="calSettings">
-        <div class="mini-cal-week-nav">
-          <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
-          <strong id="weekLabel"></strong>
-          <button type="button" id="next" aria-label="Следующая неделя">→</button>
-        </div>
-      </div>
       <div class="stage-toolbar gallery-filters" id="galleryFilters" hidden>
         <label>Тема <input id="galTheme" type="search" placeholder="Текст карточки"></label>
         <label>Тег <select id="galTag"><option value="">Все теги</option></select></label>
@@ -115,8 +113,8 @@
                 <div class="modal-media-box modal-cover-stack" id="coverSideBox">
                   <div class="modal-media-card is-cover" id="coverCardBox">
                     <img id="modalCoverPreview" alt="Обложка" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                    <button type="button" class="media-upload-plus" id="pickCoverBtn" title="Заменить обложку">+</button>
                   </div>
-                  <button type="button" class="outline media-replace-btn" id="pickCoverBtn">Заменить</button>
                 </div>
               </div>
             </div>
@@ -639,7 +637,6 @@
       document.getElementById("userTabCal").classList.toggle("active", tab === "cal");
       document.getElementById("userTabWorks").classList.toggle("active", tab === "works");
       document.getElementById("userTabFeed").classList.toggle("active", tab === "feed");
-      document.getElementById("calSettings").hidden = tab !== "cal";
       document.getElementById("galleryFilters").hidden = tab !== "works";
       document.getElementById("weekMount").hidden = tab === "works";
       document.getElementById("galleryMount").hidden = tab !== "works";

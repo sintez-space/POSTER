@@ -11,12 +11,18 @@
     <aside class="side-rail">
       <div class="side-account">
         <button type="button" class="primary" id="exportBtn">Экспорт в POSTER</button>
+        <button type="button" class="outline" id="settingsBtn">Настройки</button>
         <button type="button" class="outline" id="changeMyPwdBtn">Пароль</button>
         <button type="button" class="outline" id="logout">Выйти</button>
       </div>
 
       <div class="mini-cal-wrap">
-        <div class="mini-cal-box" id="miniMonthMount" title="Нажмите на день — сетка начнётся с него"></div>
+        <div class="mini-cal-box" id="miniMonthMount" title="Неделя с понедельника по пятницу"></div>
+        <div class="mini-cal-week-nav">
+          <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
+          <strong id="weekLabel"></strong>
+          <button type="button" id="next" aria-label="Следующая неделя">→</button>
+        </div>
       </div>
 
       <div class="admin-square-tabs">
@@ -38,7 +44,6 @@
         </button>
       </div>
 
-      <div class="cal-filter-bar" id="calFilterBar"></div>
       <div class="side-pool" id="poolMount" title="Нераспределённые карточки"></div>
     </aside>
 
@@ -66,16 +71,14 @@
         </div>
       </div>
       <div class="stage-toolbar" id="calSettings">
-        <div class="mini-cal-week-nav">
-          <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
-          <strong id="weekLabel"></strong>
-          <button type="button" id="next" aria-label="Следующая неделя">→</button>
-        </div>
         <div id="adminViewToggle"></div>
         <div id="adminFeedTools" class="user-feed-tools"></div>
       </div>
       <p id="exportMsg" class="text-primary" style="margin:0 0 4px" hidden></p>
-      <div class="catalog-admin-bar" id="catalogAdminBar"></div>
+      <div class="admin-tag-stack" id="adminTagStack">
+        <div class="catalog-admin-bar" id="catalogAdminBar"></div>
+        <div class="cal-filter-bar" id="calFilterBar"></div>
+      </div>
       <div id="weekMount"></div>
     <!-- Вкладка 2: Юзеры (карточки по юзерам: В календаре / Вне календаря) -->
     <div id="usersTabMount" class="admin-tab-pane" hidden></div>
@@ -84,6 +87,19 @@
     <!-- Вкладка 4: Заявки на регистрацию -->
     <div id="pendingTabMount" class="admin-tab-pane" hidden></div>
   </main>
+  </div>
+
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="modal" style="max-width:520px" role="dialog" aria-labelledby="settingsTitle">
+      <div class="modal-header">
+        <div class="modal-header-text">
+          <h2 id="settingsTitle">Настройки</h2>
+          <p class="modal-desc">Общие теги видны всем участникам и выбираются на карточках.</p>
+        </div>
+        <button type="button" class="modal-close ghost" id="closeSettingsTop" aria-label="Закрыть">×</button>
+      </div>
+      <div class="modal-body" id="settingsCatalogMount"></div>
+    </div>
   </div>
 
   <div class="modal-backdrop" id="modal">
@@ -129,8 +145,8 @@
               <div class="modal-media-box modal-cover-stack" id="coverSideBox">
                 <div class="modal-media-card is-cover" id="coverCardBox">
                   <img id="modalCoverPreview" alt="Обложка" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                  <button type="button" class="media-upload-plus" id="pickCoverBtn" title="Заменить обложку">+</button>
                 </div>
-                <button type="button" class="outline media-replace-btn" id="pickCoverBtn">Заменить</button>
               </div>
             </div>
           </div>
@@ -371,7 +387,7 @@
       document.getElementById("weekMount").hidden = tab !== "calendar";
       document.getElementById("calFilterBar").hidden = tab !== "calendar";
       document.getElementById("calSettings").hidden = tab !== "calendar";
-      document.getElementById("catalogAdminBar").hidden = tab !== "calendar";
+      document.getElementById("adminTagStack").hidden = tab !== "calendar";
       document.getElementById("usersTabMount").hidden = tab !== "users";
       document.getElementById("authorsTabMount").hidden = tab !== "authors";
       document.getElementById("pendingTabMount").hidden = tab !== "pending";
@@ -1197,6 +1213,16 @@
     document.getElementById("changeMyPwdBtn").onclick = () => {
       WeekPlanner.openPasswordModal({ isSelf: true });
     };
+    document.getElementById("settingsBtn").onclick = () => {
+      renderCatalogAdmin();
+      document.getElementById("settingsModal").classList.add("open");
+    };
+    document.getElementById("closeSettingsTop").onclick = () => {
+      document.getElementById("settingsModal").classList.remove("open");
+    };
+    document.getElementById("settingsModal").addEventListener("click", (e) => {
+      if (e.target.id === "settingsModal") e.currentTarget.classList.remove("open");
+    });
     document.getElementById("logout").onclick = async () => {
       await api("/api/logout", { method: "POST" });
       location.href = "/login.html";
@@ -1224,27 +1250,40 @@
 
     function renderCatalogAdmin() {
       const bar = document.getElementById("catalogAdminBar");
-      if (!bar) return;
-      bar.innerHTML = "";
-      if (lookOnly) return;
-      const label = document.createElement("span");
-      label.className = "catalog-admin-label";
-      label.textContent = "Общие теги";
-      const chips = document.createElement("div");
-      chips.className = "catalog-admin-chips";
+      const mount = document.getElementById("settingsCatalogMount");
+      if (bar) {
+        bar.innerHTML = "";
+        const label = document.createElement("span");
+        label.className = "catalog-admin-label";
+        label.textContent = "Общие теги";
+        const chips = document.createElement("div");
+        chips.className = "catalog-admin-chips";
+        for (const t of CopyFields.catalogTagsList || []) {
+          const chip = document.createElement("span");
+          chip.className = "cal-filter-chip is-tag";
+          chip.textContent = t.name;
+          if (t.color) chip.style.color = t.color;
+          chips.appendChild(chip);
+        }
+        bar.append(label, chips);
+      }
+      if (!mount || lookOnly) {
+        if (mount) mount.innerHTML = "";
+        return;
+      }
+      mount.innerHTML = "";
+      const editor = document.createElement("div");
+      editor.className = "settings-tag-editor";
+      const list = document.createElement("div");
+      list.className = "catalog-admin-chips";
       for (const t of CopyFields.catalogTagsList || []) {
         const chip = document.createElement("button");
         chip.type = "button";
         chip.className = "cal-filter-chip is-tag";
         chip.title = "Удалить общий тег";
-        const chipLabel = document.createElement("span");
-        chipLabel.textContent = t.name;
-        const chipX = document.createElement("span");
-        chipX.className = "cal-filter-x";
-        chipX.setAttribute("aria-hidden", "true");
-        chipX.textContent = "×";
-        chip.appendChild(chipLabel);
-        chip.appendChild(chipX);
+        chip.innerHTML = `<span></span><span class="cal-filter-x" aria-hidden="true">×</span>`;
+        chip.querySelector("span").textContent = t.name;
+        if (t.color) chip.style.color = t.color;
         chip.onclick = async () => {
           if (!confirm(`Удалить общий тег «${t.name}»? Он снимется со всех карточек.`)) return;
           try {
@@ -1256,8 +1295,10 @@
             alert(err.message || String(err));
           }
         };
-        chips.appendChild(chip);
+        list.appendChild(chip);
       }
+      const row = document.createElement("div");
+      row.className = "settings-tag-create";
       const nameInp = document.createElement("input");
       nameInp.type = "text";
       nameInp.maxLength = 24;
@@ -1292,11 +1333,9 @@
           alert(err.message || String(err));
         }
       };
-      bar.appendChild(label);
-      bar.appendChild(chips);
-      bar.appendChild(nameInp);
-      bar.appendChild(colorInp);
-      bar.appendChild(btn);
+      row.append(nameInp, colorInp, btn);
+      editor.append(list, row);
+      mount.appendChild(editor);
     }
 
     CopyFields.onCatalogChanged = () => renderCatalogAdmin();
@@ -1306,6 +1345,7 @@
       lookOnly = me.role === "observer" || !!me.readonly;
       if (lookOnly) {
         document.getElementById("exportBtn").hidden = true;
+        document.getElementById("settingsBtn").hidden = true;
         document.getElementById("changeMyPwdBtn").hidden = true;
         const note = document.createElement("p");
         note.className = "observer-note";
@@ -1332,6 +1372,7 @@
         miniMonthMount: document.getElementById("miniMonthMount"),
         filterBar: document.getElementById("calFilterBar"),
         userFilter: true,
+        showMine: false,
         viewToggleMount: document.getElementById("adminViewToggle"),
         feedToolsMount: document.getElementById("adminFeedTools"),
         getFilterIndex: filterIndex,

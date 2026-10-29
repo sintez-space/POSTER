@@ -681,12 +681,12 @@ const WeekPlanner = (() => {
           <div class="week-card-badges">${tagBadges}</div>
         </div>
         <div class="week-card-title">${title}</div>
-        <div class="week-card-author">${avatarHtml}</div>
+        <div class="week-card-author">${avatarHtml}<span class="week-card-author-name">${author}</span></div>
       </div>
       <div class="week-card-overlay-bottom">
         ${checks}
         ${tagBadges}
-        <div class="week-card-author">${avatarHtml}</div>
+        <div class="week-card-author">${avatarHtml}<span class="week-card-author-name">${author}</span></div>
       </div>`;
 
     const approveBtn = el.querySelector('[data-act="approve"]');
@@ -864,6 +864,7 @@ const WeekPlanner = (() => {
       miniMonthMount,
       filterBar,
       userFilter = false,
+      showMine = true,
       feedToolsMount = null,
       viewToggleMount = null,
       ignoreSavedView = false,
@@ -878,7 +879,7 @@ const WeekPlanner = (() => {
     } = options;
 
     const FEED_ORIGIN = "2026-10-30";
-    let viewStart = parseScheduled(`${FEED_ORIGIN}T00:00`) || mondayOf(new Date());
+    let viewStart = mondayOf(parseScheduled(`${FEED_ORIGIN}T00:00`) || new Date());
     let items = [];
     let loadSeq = 0;
     let filterChips = [];
@@ -945,7 +946,10 @@ const WeekPlanner = (() => {
       const resetBtn = document.createElement("button");
       resetBtn.type = "button";
       resetBtn.className = "outline";
-      resetBtn.textContent = "Сбросить";
+      resetBtn.className = "outline filter-icon-btn";
+      resetBtn.title = "Сбросить";
+      resetBtn.setAttribute("aria-label", "Сбросить");
+      resetBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>`;
       const mineBtn = document.createElement("button");
       mineBtn.type = "button";
       mineBtn.className = "outline";
@@ -973,10 +977,11 @@ const WeekPlanner = (() => {
       if (viewToggleMount) viewToggleMount.replaceChildren(viewToggle);
       if (userFilter) {
         filterBar.classList.add("is-user-filter");
-        const actions = document.createElement("div");
-        actions.className = "side-filter-actions";
-        actions.append(resetBtn, mineBtn);
-        filterBar.append(actions, wrap, chipsEl);
+        const row = document.createElement("div");
+        row.className = "side-filter-row";
+        row.append(resetBtn, wrap);
+        if (showMine) row.append(mineBtn);
+        filterBar.append(row, chipsEl);
       } else {
         filterBar.appendChild(chipsEl);
         filterBar.appendChild(wrap);
@@ -1134,11 +1139,11 @@ const WeekPlanner = (() => {
     setupFilterBar();
 
     prevBtn.onclick = () => {
-      viewStart = shiftWorkdays(viewStart, -5);
+      viewStart = addDays(mondayOf(viewStart), -7);
       load();
     };
     nextBtn.onclick = () => {
-      viewStart = shiftWorkdays(viewStart, 5);
+      viewStart = addDays(mondayOf(viewStart), 7);
       load();
     };
     prevBtn.title = "На неделю назад";
@@ -1160,8 +1165,7 @@ const WeekPlanner = (() => {
           mData.counts || {},
           anchor,
           (clickedDate) => {
-            const wd = (clickedDate.getDay() + 6) % 7;
-            viewStart = wd > 4 ? mondayOf(clickedDate) : new Date(clickedDate.getFullYear(), clickedDate.getMonth(), clickedDate.getDate());
+            viewStart = mondayOf(clickedDate);
             load();
           },
           days[days.length - 1]
@@ -1615,22 +1619,22 @@ const WeekPlanner = (() => {
       const prevDay = document.createElement("button");
       prevDay.type = "button";
       prevDay.className = "week-day-arrow";
-      prevDay.setAttribute("aria-label", "На день назад");
-      prevDay.title = "На день назад";
+      prevDay.setAttribute("aria-label", "Предыдущая неделя");
+      prevDay.title = "Предыдущая неделя";
       prevDay.innerHTML = dayArrowIcon(-1);
       prevDay.onclick = () => {
-        viewStart = shiftWorkdays(viewStart, -1);
+        viewStart = addDays(mondayOf(viewStart), -7);
         load();
       };
 
       const nextDay = document.createElement("button");
       nextDay.type = "button";
       nextDay.className = "week-day-arrow";
-      nextDay.setAttribute("aria-label", "На день вперёд");
-      nextDay.title = "На день вперёд";
+      nextDay.setAttribute("aria-label", "Следующая неделя");
+      nextDay.title = "Следующая неделя";
       nextDay.innerHTML = dayArrowIcon(1);
       nextDay.onclick = () => {
-        viewStart = shiftWorkdays(viewStart, 1);
+        viewStart = addDays(mondayOf(viewStart), 7);
         load();
       };
 
