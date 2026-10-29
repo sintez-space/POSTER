@@ -1725,11 +1725,183 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   background: var(--accent);
   color: var(--accent-foreground);
 }
-.week-filter-hide {
+.week-card.is-filter-dim,
+.feed-tile.is-filter-dim {
+  opacity: 0.2;
+}
+.cal-view-toggle {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  overflow: hidden;
+}
+.cal-view-toggle button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.cal-view-toggle button.active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.week-grid.is-feed .week-cell.cell-primary-with-carousel,
+.week-grid.is-feed .week-cell.cell-split-half {
+  grid-template-columns: 1fr 1fr;
+  padding: 2px;
+  gap: 2px;
+}
+.week-grid.is-feed .week-subslot.subslot-carousel.is-mini {
+  border: 0;
+  padding: 0;
+}
+.feed-tile {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--muted) 35%, transparent);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.feed-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.feed-tile.is-empty {
+  background: transparent;
+  border: 1px dashed color-mix(in oklch, var(--border) 80%, transparent);
+  cursor: default;
+}
+.feed-tile.is-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+.tag-bubble-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+}
+.tag-bubble-hint {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.tag-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  border: 1px solid var(--bubble, var(--primary));
+  background: color-mix(in oklch, var(--bubble, var(--primary)) 18%, transparent);
+  color: var(--bubble, var(--primary));
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.tag-bubble.is-available {
+  background: transparent;
+}
+.tag-bubble-x {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.75;
+}
+.user-view-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex: none;
+}
+.user-view-tabs button.active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.gallery-pane {
   flex: 1;
   min-height: 0;
-  border-radius: calc(var(--radius) - 4px);
-  background: color-mix(in oklch, var(--muted) 55%, transparent);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gallery-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  flex: none;
+}
+.gallery-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.gallery-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  align-content: start;
+  padding-bottom: 8px;
+}
+.gallery-card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 0;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--foreground);
+  cursor: pointer;
+}
+.gallery-card img,
+.gallery-ph {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklch, var(--muted) 50%, var(--background));
+  color: var(--muted-foreground);
+}
+.gallery-card-body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gallery-card-title {
+  font-size: 12px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.gallery-card-dates {
+  font-size: 10px;
+  color: var(--muted-foreground);
 }
 
 .header-user-btn {

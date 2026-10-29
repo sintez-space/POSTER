@@ -378,9 +378,31 @@ def _clear_description_field(conn, field: str, name: str, user_id: str | None = 
             desc = json.loads(row["descriptions_json"] or "{}")
         except Exception:
             continue
-        if not isinstance(desc, dict) or (desc.get(field) or "").strip() != name:
+        if not isinstance(desc, dict):
             continue
-        desc[field] = ""
+        changed = False
+        if (desc.get(field) or "").strip() == name:
+            desc[field] = ""
+            changed = True
+        raw_tags = desc.get("card_tags")
+        if isinstance(raw_tags, list):
+            kept = []
+            for entry in raw_tags:
+                entry_name = entry.strip() if isinstance(entry, str) else str((entry or {}).get("name") or "").strip()
+                if entry_name == name:
+                    changed = True
+                    continue
+                kept.append(entry)
+            if changed:
+                desc["card_tags"] = kept
+        if (desc.get("series_tag") or "").strip() == name:
+            desc["series_tag"] = ""
+            changed = True
+        if (desc.get("catalog_tag") or "").strip() == name:
+            desc["catalog_tag"] = ""
+            changed = True
+        if not changed:
+            continue
         conn.execute(
             "UPDATE submissions SET descriptions_json = ?, updated_at = ? WHERE id = ?",
             (json.dumps(desc, ensure_ascii=False), now, row["id"]),
@@ -850,23 +872,65 @@ def api_admin_delete_user(
     return {"ok": True, "mode": mode}
 
 
-def _check_series_tag_limit(conn, user_id: str, series_tag: str, exclude_id: str | None = None):
-    tag = (series_tag or "").strip()
-    if not tag:
+def _entry_tag_name(entry) -> str:
+    if isinstance(entry, str):
+        return entry.strip()
+    if isinstance(entry, dict):
+        return str(entry.get("name") or "").strip()
+    return ""
+
+
+def _own_tag_names(payload) -> list[str]:
+    if not isinstance(payload, dict):
+        return []
+    names = []
+    raw = payload.get("card_tags")
+    if isinstance(raw, list) and raw:
+        for entry in raw:
+            if isinstance(entry, dict) and entry.get("source") == "catalog":
+                continue
+            name = _entry_tag_name(entry)
+            if name and name not in names:
+                names.append(name)
+        return names
+    one = str(payload.get("series_tag") or "").strip()
+    return [one] if one else []
+
+
+def _desc_has_own_tag(desc: dict, tag: str) -> bool:
+    if str(desc.get("series_tag") or "").strip() == tag:
+        return True
+    raw = desc.get("card_tags")
+    if not isinstance(raw, list):
+        return False
+    for entry in raw:
+        if isinstance(entry, dict) and entry.get("source") == "catalog":
+            continue
+        if _entry_tag_name(entry) == tag:
+            return True
+    return False
+
+
+def _check_series_tag_limit(conn, user_id: str, series_tag: str, exclude_id: str | None = None, payload: dict | None = None):
+    names = _own_tag_names(payload) if isinstance(payload, dict) else []
+    if not names and (series_tag or "").strip():
+        names = [(series_tag or "").strip()]
+    if not names:
         return
     rows = conn.execute("SELECT id, descriptions_json FROM submissions WHERE user_id = ?", (user_id,)).fetchall()
-    count = 0
-    for r in rows:
-        if exclude_id and r["id"] == exclude_id:
-            continue
-        try:
-            d = json.loads(r["descriptions_json"] or "{}")
-        except Exception:
-            d = {}
-        if (d.get("series_tag") or "").strip() == tag:
-            count += 1
-    if count >= 10:
-        raise HTTPException(status_code=400, detail=f"К тегу «{tag}» уже привязано максимум 10 карточек")
+    for tag in names:
+        count = 0
+        for row in rows:
+            if exclude_id and row["id"] == exclude_id:
+                continue
+            try:
+                desc = json.loads(row["descriptions_json"] or "{}")
+            except Exception:
+                desc = {}
+            if isinstance(desc, dict) and _desc_has_own_tag(desc, tag):
+                count += 1
+        if count >= 10:
+            raise HTTPException(status_code=400, detail=f"К тегу «{tag}» уже привязано максимум 10 карточек")
 
 
 def _default_descriptions_from_profile(prof: dict) -> dict:
@@ -917,7 +981,7 @@ def api_create_submission(
             except Exception:
                 pass
 
-        _check_series_tag_limit(conn, user["id"], initial_desc.get("series_tag", ""))
+        _check_series_tag_limit(conn, user["id"], initial_desc.get("series_tag", ""), payload=initial_desc)
 
         if when_s:
             occ = conn.execute(
@@ -968,7 +1032,7 @@ def api_duplicate_submission(
             shutil.copy2(item, dst_dir / item.name)
 
     with db.connect() as conn:
-        _check_series_tag_limit(conn, user["id"], desc_copy.get("series_tag", ""))
+        _check_series_tag_limit(conn, user["id"], desc_copy.get("series_tag", ""), payload=desc_copy)
         conn.execute(
             """
             INSERT INTO submissions (
@@ -1050,7 +1114,7 @@ def api_update_submission(
         if not isinstance(payload, dict):
             raise HTTPException(status_code=400, detail="descriptions должен быть объектом")
         with db.connect() as conn:
-            _check_series_tag_limit(conn, sub["user_id"], payload.get("series_tag", ""), exclude_id=submission_id)
+            _check_series_tag_limit(conn, sub["user_id"], payload.get("series_tag", ""), exclude_id=submission_id, payload=payload)
         updates.append("descriptions_json = ?")
         params.append(json.dumps(payload, ensure_ascii=False))
     if "carousel_order" in body and isinstance(body["carousel_order"], list):

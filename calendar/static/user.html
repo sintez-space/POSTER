@@ -44,8 +44,24 @@
   </header>
 
   <main class="layout-full">
+    <div class="user-view-tabs">
+      <button type="button" id="userTabCal" class="active">Календарь</button>
+      <button type="button" id="userTabGallery">Галерея</button>
+    </div>
     <div class="cal-filter-bar" id="calFilterBar"></div>
     <div id="weekMount"></div>
+    <div id="galleryMount" class="gallery-pane" hidden>
+      <div class="gallery-filters">
+        <label>Тема <input id="galTheme" type="search" placeholder="Текст карточки"></label>
+        <label>Тег <select id="galTag"><option value="">Все теги</option></select></label>
+        <label>Загружено с <input id="galUpFrom" type="date"></label>
+        <label>по <input id="galUpTo" type="date"></label>
+        <label>Публикация с <input id="galPubFrom" type="date"></label>
+        <label>по <input id="galPubTo" type="date"></label>
+      </div>
+      <p class="tag-bubble-hint">По умолчанию карточки собраны по тегам.</p>
+      <div id="galleryGrid" class="gallery-grid"></div>
+    </div>
   </main>
 
   <!-- Модалка карточки видео / карусели -->
@@ -112,25 +128,16 @@
                 <div class="copy-subsection">
                   <div class="copy-section-head"><span class="badge">Уникальные параметры и теги</span></div>
                   <p class="copy-hint copy-hint-block">По умолчанию поля ниже заполняются данными из вашего профиля (можно дописать или изменить).</p>
-                  <div class="field">
-                    <label data-for="series_tag"></label>
-                    <p class="copy-hint" data-hint="series_tag"></p>
-                    <div class="series-tag-row">
-                      <select data-copy-field="series_tag"></select>
-                      <button type="button" class="outline danger-text" data-delete-series-tag title="Удалить выбранный свой тег из списка">Удалить</button>
-                    </div>
+                  <div class="field" data-tag-editor>
+                    <label>Теги</label>
+                    <p class="copy-hint">Создайте тег и выберите цвет — он встанет баблом на карточку. Крестик: открепить только её или удалить тег со всех карточек. Готовые теги ниже можно добавить нажатием.</p>
+                    <div class="tag-bubble-list" data-card-tag-bubbles></div>
+                    <p class="tag-bubble-hint">Готовые теги</p>
+                    <div class="tag-bubble-list" data-available-tag-bubbles></div>
                     <div class="series-tag-creator">
                       <input type="text" data-new-tag-name placeholder="НовыйТег (одно слово)" maxlength="24">
                       <input type="color" data-new-tag-color value="#2dd4bf" title="Цвет тега">
                       <button type="button" class="outline" data-add-series-tag>+ Создать тег</button>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <label data-for="catalog_tag"></label>
-                    <p class="copy-hint" data-hint="catalog_tag"></p>
-                    <div class="series-tag-row">
-                      <select data-copy-field="catalog_tag"></select>
-                      <button type="button" class="outline" data-clear-catalog-tag title="Убрать общий тег с этой карточки">Убрать</button>
                     </div>
                   </div>
                   <div class="field">
@@ -514,6 +521,116 @@
     async function refreshAll() {
       await refreshPool();
       await planner.load();
+      if (!document.getElementById("galleryMount").hidden) renderGallery();
+    }
+
+    function renderGallery() {
+      if (!me) return;
+      const grid = document.getElementById("galleryGrid");
+      const tagSelect = document.getElementById("galTag");
+      const theme = document.getElementById("galTheme").value.trim().toLowerCase();
+      const tag = document.getElementById("galTag").value;
+      const upFrom = document.getElementById("galUpFrom").value;
+      const upTo = document.getElementById("galUpTo").value;
+      const pubFrom = document.getElementById("galPubFrom").value;
+      const pubTo = document.getElementById("galPubTo").value;
+      const mine = new Map();
+      for (const it of poolItems) {
+        if (it && (it.is_mine || it.user_id === me.id)) mine.set(it.id, it);
+      }
+      if (planner) {
+        for (const it of planner.getItems()) {
+          if (it && (it.is_mine || it.user_id === me.id)) mine.set(it.id, it);
+        }
+      }
+      const allTags = new Set();
+      for (const it of mine.values()) {
+        for (const name of WeekPlanner.tagsOfItem(it)) allTags.add(name);
+      }
+      const prev = tagSelect.value;
+      tagSelect.innerHTML = `<option value="">Все теги</option>`;
+      for (const name of [...allTags].sort((a, b) => a.localeCompare(b, "ru"))) {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        tagSelect.appendChild(opt);
+      }
+      tagSelect.value = [...allTags].includes(prev) ? prev : "";
+
+      const inRange = (iso, from, to) => {
+        const day = String(iso || "").slice(0, 10);
+        if (!from && !to) return true;
+        if (!day) return false;
+        if (from && day < from) return false;
+        if (to && day > to) return false;
+        return true;
+      };
+
+      const cards = [...mine.values()].filter((it) => {
+        const title = String(((it.descriptions || {}).base) || "").toLowerCase();
+        if (theme && !title.includes(theme)) return false;
+        const tags = WeekPlanner.tagsOfItem(it);
+        if (tag && !tags.includes(tag)) return false;
+        if (!inRange(it.created_at, upFrom, upTo)) return false;
+        if ((pubFrom || pubTo) && !inRange(it.scheduled_at, pubFrom, pubTo)) return false;
+        return true;
+      });
+      cards.sort((a, b) => {
+        const ta = (WeekPlanner.tagsOfItem(a)[0] || "яяя").toLowerCase();
+        const tb = (WeekPlanner.tagsOfItem(b)[0] || "яяя").toLowerCase();
+        if (ta !== tb) return ta.localeCompare(tb, "ru");
+        const da = String(a.created_at || "");
+        const db = String(b.created_at || "");
+        return db.localeCompare(da);
+      });
+
+      grid.innerHTML = "";
+      if (!cards.length) {
+        grid.innerHTML = `<p class="tag-bubble-hint">Нет карточек под эти фильтры.</p>`;
+        return;
+      }
+      for (const it of cards) {
+        const tile = document.createElement("button");
+        tile.type = "button";
+        tile.className = "gallery-card";
+        const slides = Array.isArray(it.carousel_files) ? it.carousel_files.length : 0;
+        const hasCover = !!(it.cover_name || slides > 0);
+        const tags = WeekPlanner.tagsOfItem(it)
+          .map((name) => `<span class="series-pill">${name.replace(/[&<>]/g, "")}</span>`)
+          .join("");
+        const title = String(((it.descriptions || {}).base) || "").trim() || (it.media_kind === "carousel" ? "Карусель" : "Без названия");
+        const uploaded = String(it.created_at || "").slice(0, 10) || "—";
+        const published = String(it.scheduled_at || "").slice(0, 10) || "не в календаре";
+        tile.innerHTML = `
+          ${
+            hasCover
+              ? `<img src="/api/submissions/${it.id}/cover?thumb=1&t=${encodeURIComponent(it.updated_at || "")}" alt="">`
+              : `<div class="gallery-ph">${it.media_kind === "carousel" ? "▤" : "9:16"}</div>`
+          }
+          <div class="gallery-card-body">
+            <div class="week-card-badges">${tags}</div>
+            <div class="gallery-card-title"></div>
+            <div class="gallery-card-dates">загрузка ${uploaded} · публикация ${published}</div>
+          </div>`;
+        tile.querySelector(".gallery-card-title").textContent = title;
+        tile.onclick = () => openSub(it.id);
+        grid.appendChild(tile);
+      }
+    }
+
+    function setUserTab(tab) {
+      document.getElementById("userTabCal").classList.toggle("active", tab === "cal");
+      document.getElementById("userTabGallery").classList.toggle("active", tab === "gal");
+      document.getElementById("calFilterBar").hidden = tab !== "cal";
+      document.getElementById("weekMount").hidden = tab !== "cal";
+      document.getElementById("galleryMount").hidden = tab !== "gal";
+      if (tab === "gal") renderGallery();
+    }
+    document.getElementById("userTabCal").onclick = () => setUserTab("cal");
+    document.getElementById("userTabGallery").onclick = () => setUserTab("gal");
+    for (const id of ["galTheme", "galTag", "galUpFrom", "galUpTo", "galPubFrom", "galPubTo"]) {
+      document.getElementById(id).addEventListener("input", () => renderGallery());
+      document.getElementById(id).addEventListener("change", () => renderGallery());
     }
 
     function findSub(id) {
@@ -521,6 +638,7 @@
     }
 
     function setReadonly(readonly) {
+      CopyFields.setFormLocked(readonly);
       modalPanel.classList.toggle("readonly", readonly);
       for (const id of ["subVideo", "subCover", "subCarousel", "saveBtn", "pickCoverBtn", "pickVideoBtn"]) {
         const el = document.getElementById(id);
@@ -827,6 +945,7 @@
         mediaKind === "carousel" ? "Новая карусель" : "Новый рилс";
       updateModalMetaLabel();
 
+      CopyFields.submissionId = "";
       try { await CopyFields.ensureOwnerTags(me.id); } catch (_) {}
       CopyFields.writeForm(copyRoot, {}, me);
       CopyFields.bindCounters(copyRoot, limits);
@@ -857,6 +976,7 @@
       const locked = WeekPlanner.isLocked(sub);
       const readonly = (!sub.is_mine || locked) && me.role !== "admin";
       const inSlot = !!WeekPlanner.slotForItem(sub);
+      CopyFields.submissionId = id;
       document.getElementById("subId").value = id;
       const d = sub.descriptions || {};
       const kindPrefix = sub.media_kind === "carousel" ? "Карусель · " : "Рилс · ";

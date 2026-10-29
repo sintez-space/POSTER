@@ -147,26 +147,16 @@
               <div class="copy-subsection">
                 <div class="copy-section-head"><span class="badge">Уникальные параметры и теги</span></div>
                 <p class="copy-hint copy-hint-block">Добавляются к публикации отдельно от текста сетей — и при общем описании, и при своём.</p>
-                <div class="field">
-                  <label data-for="series_tag"></label>
-                  <p class="copy-hint" data-hint="series_tag"></p>
-                  <div class="series-tag-row">
-                    <select data-copy-field="series_tag"></select>
-                    <button type="button" class="outline danger-text" data-delete-series-tag title="Удалить выбранный свой тег автора">Удалить</button>
-                  </div>
+                <div class="field" data-tag-editor>
+                  <label>Теги</label>
+                  <p class="copy-hint">Бабл с цветом вешается на карточку. Крестик: открепить только её или удалить тег со всех карточек.</p>
+                  <div class="tag-bubble-list" data-card-tag-bubbles></div>
+                  <p class="tag-bubble-hint">Готовые теги</p>
+                  <div class="tag-bubble-list" data-available-tag-bubbles></div>
                   <div class="series-tag-creator">
                     <input type="text" data-new-tag-name placeholder="НовыйТег (одно слово)" maxlength="24">
                     <input type="color" data-new-tag-color value="#2dd4bf" title="Цвет тега">
                     <button type="button" class="outline" data-add-series-tag>+ Создать тег</button>
-                  </div>
-                </div>
-                <div class="field">
-                  <label data-for="catalog_tag"></label>
-                  <p class="copy-hint" data-hint="catalog_tag"></p>
-                  <div class="series-tag-row">
-                    <select data-copy-field="catalog_tag"></select>
-                    <button type="button" class="outline" data-clear-catalog-tag title="Убрать общий тег с этой карточки">Убрать</button>
-                    <button type="button" class="outline danger-text" data-delete-catalog-tag title="Удалить общий тег из списка администратора" hidden>Удалить</button>
                   </div>
                   <div class="series-tag-creator" data-catalog-creator hidden>
                     <input type="text" data-new-catalog-name placeholder="Общий тег (одно слово)" maxlength="24">
@@ -668,6 +658,7 @@
     }
 
     function setAdminReadonly(readonly) {
+      CopyFields.setFormLocked(readonly);
       modalPanel.classList.toggle("readonly", readonly);
       for (const id of ["subVideo", "subCover", "subCarousel", "saveCopyBtn", "pickCoverBtn", "pickVideoBtn"]) {
         const el = document.getElementById(id);
@@ -927,6 +918,7 @@
         ? `${fmtLocal(modalScheduledAt)} (слот ${modalSlotPart})`
         : "В пуле (не в расписании)";
 
+      CopyFields.submissionId = "";
       try { await CopyFields.ensureOwnerTags(me.id); } catch (_) {}
       CopyFields.writeForm(copyRoot, {}, me);
       CopyFields.bindCounters(copyRoot, limits);
@@ -966,6 +958,7 @@
         `${sub.author_name || "—"} · ${
           inSlot ? `${fmtLocal(sub.scheduled_at)} (слот ${sub.slot_part || 1})` : "В пуле (не в расписании)"
         }${locked ? " · Слот подтверждён и зафиксирован (снимите фиксацию для правок)" : ""}`;
+      CopyFields.submissionId = sub.id;
       try { await CopyFields.ensureOwnerTags(sub.user_id); } catch (_) {}
       CopyFields.writeForm(copyRoot, d, null);
       CopyFields.bindCounters(copyRoot, limits);

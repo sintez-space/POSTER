@@ -204,6 +204,27 @@ const WeekPlanner = (() => {
     return (d.catalog_tag || "").trim();
   }
 
+  function tagsOfItem(item) {
+    const d = (item && item.descriptions) || {};
+    const names = [];
+    const raw = Array.isArray(d.card_tags) ? d.card_tags : [];
+    for (const entry of raw) {
+      const name = String(typeof entry === "string" ? entry : (entry && entry.name) || "").trim();
+      if (name && !names.includes(name)) names.push(name);
+    }
+    if (!names.length) {
+      const own = seriesTagOf(item);
+      const shared = catalogTagOf(item);
+      if (own) names.push(own);
+      if (shared && shared !== own) names.push(shared);
+    }
+    return names;
+  }
+
+  function paletteForTag(name) {
+    return SERIES_PALETTE[name] || CATALOG_PALETTE[name] || hexToPalette("#94a3b8");
+  }
+
   function pillStyle(palette) {
     if (!palette) return "";
     return ` style="--series-accent:${palette.accent};--series-bg:${palette.bg};--series-border:${palette.border}"`;
@@ -544,20 +565,16 @@ const WeekPlanner = (() => {
     const el = document.createElement("div");
     const foreign = item.is_mine === false && me.role !== "admin";
     const locked = isLocked(item);
-    const sTag = seriesTagOf(item);
-    const cTag = catalogTagOf(item);
-    const palette = sTag
-      ? SERIES_PALETTE[sTag] || hexToPalette("#2dd4bf")
-      : cTag
-        ? CATALOG_PALETTE[cTag] || hexToPalette("#60a5fa")
-        : null;
+    const cardTags = tagsOfItem(item);
+    const sTag = cardTags[0] || "";
+    const palette = sTag ? paletteForTag(sTag) : null;
     const isCarousel = item.media_kind === "carousel";
 
     el.className =
       "week-card" +
       (foreign ? " foreign" : "") +
       (locked ? " locked" : "") +
-      (sTag || cTag ? " has-series" : "") +
+      (cardTags.length ? " has-series" : "") +
       (isCarousel ? " is-carousel" : "") +
       (halfSlot ? " half-slot" : "") +
       (compact ? " compact" : "") +
@@ -602,22 +619,9 @@ const WeekPlanner = (() => {
 
     const author = escHtml(item.author_name || "—");
     const title = escHtml(titleOf(item));
-    const kindBadge = isCarousel ? `<span class="carousel-kind-pill" title="Карусель фото">Карусель</span>` : "";
-    const seriesBadge = sTag ? `<span class="series-pill">${escHtml(sTag)}</span>` : "";
-    const catalogPalette = cTag ? CATALOG_PALETTE[cTag] || hexToPalette("#60a5fa") : null;
-    const catalogBadge = cTag
-      ? `<span class="series-pill catalog-pill"${pillStyle(catalogPalette)}>${escHtml(cTag)}</span>`
-      : "";
-    const foreignBadge = foreign
-      ? `<span class="slot-foreign-pill" title="Чужая карточка — редактировать или снять со слота нельзя">Чужой</span>`
-      : "";
-    const lockBadge = locked
-      ? `<span class="slot-lock-pill" title="Подтверждено админом — слот зафиксирован">${
-          me.role === "admin" ? "Фикс" : "Фикс админа"
-        }</span>`
-      : inSlot && !foreign
-        ? `<span class="slot-pending-pill" title="Ожидает подтверждения админа">План</span>`
-        : "";
+    const tagBadges = cardTags
+      .map((name) => `<span class="series-pill"${pillStyle(paletteForTag(name))}>${escHtml(name)}</span>`)
+      .join("");
 
     const showClear = inSlot && onClearSlot && canClearSlot(item, me);
     const showApprove = inSlot && me.role === "admin" && onToggleApprove;
@@ -655,13 +659,13 @@ const WeekPlanner = (() => {
       </div>
       <div class="week-card-body">
         <div class="week-card-top">
-          <div class="week-card-badges">${kindBadge}${seriesBadge}${catalogBadge}${lockBadge}${foreignBadge}</div>
+          <div class="week-card-badges">${tagBadges}</div>
         </div>
         <div class="week-card-title">${title}</div>
         <div class="week-card-meta">${author}</div>
       </div>
       <div class="week-card-overlay-bottom">
-        ${seriesBadge}${catalogBadge}
+        ${tagBadges}
         <div class="overlay-author-name">${author}</div>
       </div>`;
 
@@ -848,6 +852,10 @@ const WeekPlanner = (() => {
     let items = [];
     let loadSeq = 0;
     let filterChips = [];
+    let calendarView = "board";
+    try {
+      calendarView = sessionStorage.getItem("posterCalView") === "feed" ? "feed" : "board";
+    } catch (_) {}
 
     function findItem(id) {
       return items.find((x) => x.id === id) || (resolveItem ? resolveItem(id) : null);
@@ -859,9 +867,7 @@ const WeekPlanner = (() => {
 
     function itemMatchesFilter(item) {
       if (!filterChips.length) return true;
-      const tagNames = [seriesTagOf(item), catalogTagOf(item)]
-        .filter(Boolean)
-        .map((s) => s.toLowerCase());
+      const tagNames = tagsOfItem(item).map((s) => s.toLowerCase());
       const author = String((item && item.author_name) || "").trim().toLowerCase();
       return filterChips.some((chip) => {
         const needle = String(chip.name || "").trim().toLowerCase();
@@ -892,8 +898,35 @@ const WeekPlanner = (() => {
       resetBtn.textContent = "Сбросить";
       wrap.appendChild(input);
       wrap.appendChild(suggest);
+      const viewToggle = document.createElement("div");
+      viewToggle.className = "cal-view-toggle";
+      const boardBtn = document.createElement("button");
+      boardBtn.type = "button";
+      boardBtn.textContent = "Расписание";
+      const feedBtn = document.createElement("button");
+      feedBtn.type = "button";
+      feedBtn.textContent = "Лента";
+      function paintViewToggle() {
+        boardBtn.className = calendarView === "board" ? "active" : "";
+        feedBtn.className = calendarView === "feed" ? "active" : "";
+      }
+      function setCalendarView(next) {
+        calendarView = next === "feed" ? "feed" : "board";
+        try {
+          sessionStorage.setItem("posterCalView", calendarView);
+        } catch (_) {}
+        paintViewToggle();
+        render();
+      }
+      boardBtn.onclick = () => setCalendarView("board");
+      feedBtn.onclick = () => setCalendarView("feed");
+      viewToggle.appendChild(boardBtn);
+      viewToggle.appendChild(feedBtn);
+      paintViewToggle();
+
       filterBar.appendChild(chipsEl);
       filterBar.appendChild(wrap);
+      filterBar.appendChild(viewToggle);
       filterBar.appendChild(resetBtn);
 
       let suggestItems = [];
@@ -1232,7 +1265,7 @@ const WeekPlanner = (() => {
       };
 
       const grid = document.createElement("div");
-      grid.className = "week-grid" + (isAdmin ? " has-day-footers" : "");
+      grid.className = "week-grid" + (isAdmin ? " has-day-footers" : "") + (calendarView === "feed" ? " is-feed" : "");
       const colParts = ["70px"];
       for (let i = 0; i < days.length; i++) {
         if (weekBreakBefore(days, i)) colParts.push("100px");
@@ -1245,6 +1278,36 @@ const WeekPlanner = (() => {
         gap.className = "week-week-gap";
         gap.setAttribute("aria-hidden", "true");
         grid.appendChild(gap);
+      }
+
+      function makeFeedTile(item) {
+        if (!item) {
+          const empty = document.createElement("div");
+          empty.className = "feed-tile is-empty";
+          return empty;
+        }
+        const tile = document.createElement("button");
+        tile.type = "button";
+        tile.className = "feed-tile";
+        if (!itemMatchesFilter(item)) tile.classList.add("is-filter-dim");
+        const slidesCount = Array.isArray(item.carousel_files) ? item.carousel_files.length : 0;
+        const hasCover = !!(item.cover_name || slidesCount > 0);
+        if (hasCover) {
+          const img = document.createElement("img");
+          img.src = `/api/submissions/${item.id}/cover?thumb=1&t=${encodeURIComponent(item.updated_at || "")}`;
+          img.alt = titleOf(item);
+          img.draggable = false;
+          tile.appendChild(img);
+        } else {
+          tile.classList.add("is-blank");
+          tile.textContent = item.media_kind === "carousel" ? "▤" : "9:16";
+        }
+        tile.title = `${titleOf(item)} · ${item.author_name || ""}`;
+        tile.onclick = (e) => {
+          e.stopPropagation();
+          if (onOpen) onOpen(item.id, item);
+        };
+        return tile;
       }
 
       grid.appendChild(document.createElement("div")).className = "week-corner";
@@ -1288,11 +1351,8 @@ const WeekPlanner = (() => {
 
           const sub1 = document.createElement("div");
           sub1.className = "week-subslot subslot-primary";
-          if (item1 && !itemMatchesFilter(item1)) {
-            const hidden = document.createElement("div");
-            hidden.className = "week-filter-hide";
-            hidden.title = "Скрыто фильтром";
-            sub1.appendChild(hidden);
+          if (calendarView === "feed") {
+            sub1.appendChild(makeFeedTile(item1, pastDay));
           } else if (item1) {
             sub1.appendChild(
               buildCard(item1, {
@@ -1306,6 +1366,7 @@ const WeekPlanner = (() => {
                 halfSlot: splitHalf || item1.media_kind === "carousel",
               })
             );
+            if (!itemMatchesFilter(item1)) sub1.firstChild.classList.add("is-filter-dim");
           } else {
             const add1 = document.createElement("button");
             add1.type = "button";
@@ -1326,11 +1387,8 @@ const WeekPlanner = (() => {
 
           const sub2 = document.createElement("div");
           sub2.className = "week-subslot subslot-carousel" + (item2 || leftIsCarousel ? " is-filled" : " is-mini");
-          if (item2 && !itemMatchesFilter(item2)) {
-            const hidden = document.createElement("div");
-            hidden.className = "week-filter-hide";
-            hidden.title = "Скрыто фильтром";
-            sub2.appendChild(hidden);
+          if (calendarView === "feed") {
+            sub2.appendChild(makeFeedTile(item2, pastDay));
           } else if (item2) {
             sub2.appendChild(
               buildCard(item2, {
@@ -1344,6 +1402,7 @@ const WeekPlanner = (() => {
                 halfSlot: true,
               })
             );
+            if (!itemMatchesFilter(item2)) sub2.firstChild.classList.add("is-filter-dim");
           } else {
             const add2 = document.createElement("button");
             add2.type = "button";
@@ -1424,6 +1483,7 @@ const WeekPlanner = (() => {
     isoDate,
     todayIso,
     isPastDateIso,
+    tagsOfItem,
     slotForItem,
     slotPartOf,
     isLocked,
