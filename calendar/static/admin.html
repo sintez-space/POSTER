@@ -294,12 +294,6 @@
     let me, limits, poolItems = [], authorsList = [], planner, modalSubId = null, draftNewState = null, participantNames = [];
     let lookOnly = false;
 
-    function roleTitle(role) {
-      if (role === "admin") return "Админ";
-      if (role === "observer") return "Наблюдатель";
-      return "Автор";
-    }
-
     async function setUserRole(userId, role) {
       await api(`/api/admin/users/${userId}/role`, {
         method: "POST",
@@ -588,6 +582,14 @@
     }
 
     async function renderAuthorsTab() {
+      if (!renderAuthorsTab._outside) {
+        renderAuthorsTab._outside = true;
+        document.addEventListener("click", () => {
+          document.querySelectorAll(".author-gear-pop").forEach((el) => {
+            el.hidden = true;
+          });
+        });
+      }
       const mount = document.getElementById("authorsTabMount");
       try {
         authorsList = await api("/api/admin/authors");
@@ -614,13 +616,30 @@
           )
           .join(" ");
 
+        const menuItems = [
+          `<button type="button" data-au-view="${au.id}">Кабинет</button>`,
+        ];
+        if (!lookOnly) menuItems.push(`<button type="button" data-au-pwd="${au.id}">Сменить пароль</button>`);
+        if (!lookOnly && au.id !== me.id) {
+          if (au.role !== "admin") menuItems.push(`<button type="button" data-au-role="admin">Сделать админом</button>`);
+          if (au.role !== "observer") menuItems.push(`<button type="button" data-au-role="observer">Наблюдатель</button>`);
+          if (au.role !== "user") menuItems.push(`<button type="button" data-au-role="user">Сделать автором</button>`);
+          menuItems.push(`<button type="button" data-au-del="${au.id}" class="is-danger">Удалить юзера</button>`);
+        }
+
         card.innerHTML = `
           <div class="author-info-top">
             ${avHtml}
             <div class="author-info-meta">
               <h3>${au.display_name || au.login}</h3>
-              <p>Логин: <strong>@${au.login}</strong> · Роль: ${roleTitle(au.role)}</p>
-              <p>Карточек всего: <strong>${st.total}</strong> (в календаре: ${st.scheduled}, зафиксировано: ${st.approved}, в пуле: ${st.unscheduled})</p>
+              <p>Логин: <strong>@${au.login}</strong></p>
+              <p>Карточек всего: <strong>${st.total}</strong></p>
+            </div>
+            <div class="author-card-menu">
+              <button type="button" class="author-gear" aria-label="Действия" title="Действия">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+              </button>
+              <div class="author-gear-pop" hidden>${menuItems.join("")}</div>
             </div>
           </div>
           <div class="author-handles-list">
@@ -637,7 +656,7 @@
               <div>${p.tags_cloud || "—"}</div>
             </div>
             <div class="author-cloud-row">
-              <strong>Коллабораторы по умолчанию (.collaborators.txt)</strong>
+              <strong>Коллабораторы (.collaborators.txt)</strong>
               <div>${p.default_collaborators || "—"}</div>
             </div>
             <div class="author-cloud-row">
@@ -652,29 +671,22 @@
               <strong>Личные теги связки</strong>
               <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${tagsPills || "—"}</div>
             </div>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;padding-top:10px;border-top:1px solid var(--border)">
-            <button type="button" class="outline" data-au-view="${au.id}" style="flex:1;font-size:12px" title="Открыть кабинет этого участника в новой вкладке">Кабинет</button>
-            ${
-              lookOnly
-                ? ""
-                : `<button type="button" class="outline" data-au-pwd="${au.id}" style="flex:1;font-size:12px">Сменить пароль</button>`
-            }
-            ${
-              !lookOnly && au.id !== me.id
-                ? `<button type="button" class="outline" data-au-del="${au.id}" style="color:var(--destructive);font-size:12px">Удалить юзера</button>`
-                : ""
-            }
-          </div>
-          ${
-            !lookOnly && au.id !== me.id
-              ? `<div class="author-role-actions">
-                  ${au.role !== "admin" ? `<button type="button" class="outline" data-au-role="admin">Сделать админом</button>` : ""}
-                  ${au.role !== "observer" ? `<button type="button" class="outline" data-au-role="observer">Наблюдатель</button>` : ""}
-                  ${au.role !== "user" ? `<button type="button" class="outline" data-au-role="user">Сделать автором</button>` : ""}
-                </div>`
-              : ""
-          }`;
+          </div>`;
+
+        const gearBtn = card.querySelector(".author-gear");
+        const gearPop = card.querySelector(".author-gear-pop");
+        gearBtn.onclick = (e) => {
+          e.stopPropagation();
+          const willOpen = gearPop.hidden;
+          document.querySelectorAll(".author-gear-pop").forEach((el) => {
+            el.hidden = true;
+          });
+          gearPop.hidden = !willOpen;
+        };
+        gearPop.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (e.target.closest("button")) gearPop.hidden = true;
+        });
 
         card.querySelector("[data-au-view]").onclick = () => {
           window.open(`/view-as?user=${encodeURIComponent(au.id)}`, "_blank");

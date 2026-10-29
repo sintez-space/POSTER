@@ -2407,82 +2407,156 @@ table.admin th, table.admin td {
 
 .authors-info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 8px;
 }
 .author-info-card {
+  position: relative;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+  line-height: 1.2;
+  font-size: 11px;
 }
 .author-info-top {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 .author-info-top img,
 .author-info-avatar-ph {
-  width: 56px;
-  height: 56px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
   object-fit: cover;
   filter: grayscale(100%) contrast(1.08);
-  border: 2px solid var(--primary);
+  border: 1.5px solid var(--primary);
   background: var(--muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 14px;
   flex-shrink: 0;
+}
+.author-info-meta {
+  flex: 1;
+  min-width: 0;
 }
 .author-info-meta h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
+  line-height: 1.15;
 }
 .author-info-meta p {
-  margin: 2px 0 0;
-  font-size: 11.5px;
+  margin: 1px 0 0;
+  font-size: 10px;
+  line-height: 1.2;
   color: var(--muted-foreground);
+}
+.author-card-menu {
+  position: relative;
+  flex: none;
+  align-self: flex-start;
+}
+.author-gear {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+}
+.author-gear:hover {
+  color: var(--foreground);
+  border-color: var(--primary);
+}
+.author-gear-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.28);
+}
+.author-gear-pop[hidden] {
+  display: none !important;
+}
+.author-gear-pop button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.author-gear-pop button:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.author-gear-pop button.is-danger {
+  color: var(--destructive);
 }
 .author-handles-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px 10px;
-  font-size: 12px;
+  gap: 3px 8px;
+  font-size: 10px;
+  line-height: 1.2;
   background: color-mix(in oklch, var(--muted) 40%, var(--card));
-  padding: 10px;
+  padding: 6px 8px;
   border-radius: calc(var(--radius) - 2px);
   border: 1px solid var(--border);
 }
 .author-handles-list div span {
   color: var(--muted-foreground);
-  font-size: 10.5px;
+  font-size: 9px;
   display: block;
+  line-height: 1.15;
+}
+.author-handles-list strong {
+  font-size: 10px;
+  font-weight: 600;
 }
 .author-clouds-box {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 11.5px;
+  gap: 4px;
+  font-size: 10px;
+  line-height: 1.2;
 }
 .author-cloud-row {
   background: color-mix(in oklch, var(--background) 65%, var(--card));
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 4px 6px;
 }
 .author-cloud-row strong {
   display: block;
-  font-size: 10px;
+  font-size: 9px;
+  line-height: 1.15;
   text-transform: uppercase;
   color: var(--primary);
-  margin-bottom: 2px;
+  margin-bottom: 1px;
+}
+.author-info-card .series-pill {
+  font-size: 9px;
+  padding: 1px 6px;
 }
 .author-role-actions {
   display: flex;
