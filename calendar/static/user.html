@@ -626,6 +626,10 @@
     }
 
     function setUserTab(tab) {
+      if (tab !== "gal") tab = "cal";
+      try {
+        sessionStorage.setItem("posterUserTab", tab);
+      } catch (_) {}
       document.getElementById("userTabCal").classList.toggle("active", tab === "cal");
       document.getElementById("userTabGallery").classList.toggle("active", tab === "gal");
       document.getElementById("calFilterBar").hidden = tab !== "cal";
@@ -635,6 +639,9 @@
     }
     document.getElementById("userTabCal").onclick = () => setUserTab("cal");
     document.getElementById("userTabGallery").onclick = () => setUserTab("gal");
+    try {
+      if (sessionStorage.getItem("posterUserTab") === "gal") setUserTab("gal");
+    } catch (_) {}
     for (const id of ["galTheme", "galTag", "galUpFrom", "galUpTo", "galPubFrom", "galPubTo"]) {
       document.getElementById(id).addEventListener("input", () => renderGallery());
       document.getElementById(id).addEventListener("change", () => renderGallery());

@@ -308,6 +308,10 @@
       await renderAuthorsTab();
     }
     let activeAdminTab = "calendar";
+    try {
+      const savedTab = sessionStorage.getItem("posterAdminTab");
+      if (["calendar", "users", "authors", "pending"].includes(savedTab)) activeAdminTab = savedTab;
+    } catch (_) {}
     let modalScheduledAt = "";
     let modalSlotPart = 1;
     let modalMediaKind = "video";
@@ -367,7 +371,11 @@
 
     /* --- Переключение вкладок Админа: Календарь / Юзеры / Авторы / Заявки --- */
     function setAdminTab(tab) {
+      if (!["calendar", "users", "authors", "pending"].includes(tab)) tab = "calendar";
       activeAdminTab = tab;
+      try {
+        sessionStorage.setItem("posterAdminTab", tab);
+      } catch (_) {}
       document.getElementById("tabCalendarBtn").classList.toggle("active", tab === "calendar");
       document.getElementById("tabUsersBtn").classList.toggle("active", tab === "users");
       document.getElementById("tabAuthorsBtn").classList.toggle("active", tab === "authors");
@@ -380,10 +388,12 @@
       document.getElementById("authorsTabMount").hidden = tab !== "authors";
       document.getElementById("pendingTabMount").hidden = tab !== "pending";
 
+      if (!me) return;
       if (tab === "users") renderUsersTab();
       if (tab === "authors") renderAuthorsTab();
       if (tab === "pending") renderPendingTab();
     }
+    setAdminTab(activeAdminTab);
 
     document.getElementById("tabCalendarBtn").onclick = () => setAdminTab("calendar");
     document.getElementById("tabUsersBtn").onclick = () => setAdminTab("users");
