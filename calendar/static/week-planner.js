@@ -1308,7 +1308,10 @@ const WeekPlanner = (() => {
         cursor = addDays(cursor, 1);
       }
       loose.sort(feedSort);
-      for (const it of loose) seq.push({ item: it, hole: false, caption: "без слота" });
+      for (const it of loose) seq.push({ item: it, hole: false, caption: "" });
+      const firstReal = seq.findIndex((entry) => entry && !entry.hole);
+      if (firstReal < 0) return seq.slice(0, 3);
+      if (firstReal > 3) return seq.slice(firstReal - 3);
       return seq;
     }
 
@@ -1322,6 +1325,60 @@ const WeekPlanner = (() => {
       const cb = String((b && b.created_at) || "");
       if (ca !== cb) return ca < cb ? -1 : 1;
       return String((a && a.id) || "").localeCompare(String((b && b.id) || ""));
+    }
+
+    function feedSlotNote(cell) {
+      const note = document.createElement("div");
+      note.className = "feed-slot-note";
+      const when = document.createElement("div");
+      when.className = "feed-slot-when";
+      when.textContent = cell.caption || (cell.hole ? "Свободно" : "не в расписании");
+      note.appendChild(when);
+      if (cell.hole || !cell.item) return note;
+      const item = cell.item;
+      const who = document.createElement("div");
+      who.className = "feed-slot-who";
+      const author = item.author_name || "—";
+      if (item.author_avatar_url) {
+        const img = document.createElement("img");
+        img.className = "feed-slot-avatar";
+        img.src = item.author_avatar_url;
+        img.alt = author;
+        img.draggable = false;
+        who.appendChild(img);
+      } else {
+        const fallback = document.createElement("div");
+        fallback.className = "feed-slot-avatar is-fallback";
+        fallback.textContent = author.slice(0, 1).toUpperCase();
+        who.appendChild(fallback);
+      }
+      const name = document.createElement("span");
+      name.textContent = author;
+      who.appendChild(name);
+      note.appendChild(who);
+      const tags = tagsOfItem(item);
+      if (tags.length) {
+        const row = document.createElement("div");
+        row.className = "feed-slot-tags";
+        for (const tagName of tags) {
+          const pill = document.createElement("span");
+          pill.className = "series-pill";
+          const palette = paletteForTag(tagName);
+          if (palette) {
+            pill.style.setProperty("--series-accent", palette.accent);
+            pill.style.setProperty("--series-bg", palette.bg);
+            pill.style.setProperty("--series-border", palette.border);
+          }
+          pill.textContent = tagName;
+          row.appendChild(pill);
+        }
+        note.appendChild(row);
+      }
+      const title = document.createElement("div");
+      title.className = "feed-slot-title";
+      title.textContent = titleOf(item);
+      note.appendChild(title);
+      return note;
     }
 
     function renderFeed() {
@@ -1414,7 +1471,6 @@ const WeekPlanner = (() => {
         line.className = "feed-line";
         const lineCells = document.createElement("div");
         lineCells.className = "feed-line-cells";
-        const captions = [];
         for (let c = 0; c < cols; c++) {
           const cell = cells[r * cols + c];
           if (!cell) {
@@ -1423,7 +1479,6 @@ const WeekPlanner = (() => {
             lineCells.appendChild(gap);
             continue;
           }
-          captions.push(cell.caption || "");
           if (cell.hole) {
             const hole = document.createElement("div");
             hole.className = "feed-cell is-hole";
@@ -1456,7 +1511,11 @@ const WeekPlanner = (() => {
         }
         const times = document.createElement("div");
         times.className = "feed-line-times";
-        times.textContent = captions.filter(Boolean).join(" · ");
+        for (let c = 0; c < cols; c++) {
+          const cell = cells[r * cols + c];
+          if (!cell) continue;
+          times.appendChild(feedSlotNote(cell));
+        }
         line.append(lineCells, times);
         sheet.appendChild(line);
       }
