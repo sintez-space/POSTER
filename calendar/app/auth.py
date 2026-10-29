@@ -2,8 +2,11 @@ import hashlib
 import json
 import secrets
 import uuid
+from contextvars import ContextVar
 
 from . import db
+
+view_as_id: ContextVar[str] = ContextVar("view_as_id", default="")
 
 
 def hash_password(password: str, salt: str | None = None) -> str:
@@ -52,7 +55,19 @@ def create_session(user_id: str) -> str:
     return token
 
 
-def user_by_token(token: str | None):
+def _brief_from_row(row) -> dict:
+    return {
+        "id": row["id"],
+        "login": row["login"],
+        "email": row["email"] or "",
+        "role": row["role"],
+        "display_name": row["display_name"],
+        "is_approved": int(row["is_approved"]) if row["is_approved"] is not None else 1,
+    }
+
+
+def session_user(token: str | None):
+    """Пользователь по cookie, без подмены «глазами участника»."""
     if not token:
         return None
     with db.connect() as conn:
@@ -66,9 +81,41 @@ def user_by_token(token: str | None):
         ).fetchone()
     if not row:
         return None
-    if row["role"] != "admin" and not int(row["is_approved"] if row["is_approved"] is not None else 1):
+    user = _brief_from_row(row)
+    if user["role"] != "admin" and not user["is_approved"]:
         return None
-    return dict(row)
+    return user
+
+
+def user_brief(user_id: str):
+    uid = (user_id or "").strip()
+    if not uid:
+        return None
+    with db.connect() as conn:
+        row = conn.execute(
+            """
+            SELECT id, login, email, role, display_name, is_approved
+            FROM users WHERE id = ?
+            """,
+            (uid,),
+        ).fetchone()
+    if not row:
+        return None
+    return _brief_from_row(row)
+
+
+def user_by_token(token: str | None):
+    real = session_user(token)
+    if not real:
+        return None
+    target = (view_as_id.get() or "").strip()
+    if not target or target == real["id"] or real["role"] != "admin":
+        return real
+    other = user_brief(target)
+    if not other:
+        return real
+    other["viewing_as"] = True
+    return other
 
 
 def login(login_or_email: str, password: str):

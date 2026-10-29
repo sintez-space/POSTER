@@ -18,6 +18,31 @@ from .slots import SLOT_HOURS, date_span, validate_scheduled_at, week_range
 
 app = FastAPI(title="POSTER Calendar", docs_url="/api/docs")
 app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+class ViewAsMiddleware:
+    """Заголовок X-View-As подменяет пользователя только в этом запросе. Cookie админа не меняется."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        raw = ""
+        for key, value in scope.get("headers") or []:
+            if key.decode("latin1").lower() == "x-view-as":
+                raw = value.decode("latin1").strip()
+                break
+        token = auth.view_as_id.set(raw)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            auth.view_as_id.reset(token)
+
+
+app.add_middleware(ViewAsMiddleware)
 STATIC = CALENDAR_ROOT / "static"
 SESSION_COOKIE = "calendar_session"
 MAX_AVATAR_BYTES = 100 * 1024
@@ -101,6 +126,18 @@ def index(calendar_session: str | None = Cookie(default=None)):
 @app.get("/login.html")
 def login_page():
     return FileResponse(STATIC / "login.html")
+
+
+@app.get("/view-as")
+def view_as_page(user: str = "", calendar_session: str | None = Cookie(default=None)):
+    actor = auth.session_user(calendar_session)
+    if not actor:
+        return RedirectResponse("/login.html", status_code=302)
+    if actor["role"] != "admin":
+        return RedirectResponse("/", status_code=302)
+    if not auth.user_brief(user):
+        raise HTTPException(status_code=404, detail="участник не найден")
+    return FileResponse(STATIC / "user.html")
 
 
 @app.get("/admin.html")

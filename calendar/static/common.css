@@ -67,6 +67,21 @@ header.bar {
 }
 header.bar h1 { margin: 0; font-size: 1.05rem; font-weight: 600; flex: 1; letter-spacing: -0.02em; }
 
+.view-as-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background: color-mix(in oklch, var(--primary) 16%, var(--card));
+  border-bottom: 1px solid color-mix(in oklch, var(--primary) 45%, var(--border));
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.view-as-bar button { flex-shrink: 0; }
+
 main { padding: 8px 14px 12px; max-width: none; width: 100%; margin: 0; }
 main.layout-full {
   box-sizing: border-box;

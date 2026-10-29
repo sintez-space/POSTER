@@ -481,6 +481,11 @@
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               ${
                 key && key !== "unknown"
+                  ? `<button type="button" class="outline" data-u-view="${key}" style="padding:4px 10px;font-size:11px" title="Открыть кабинет этого участника в новой вкладке">Кабинет</button>`
+                  : ""
+              }
+              ${
+                key && key !== "unknown"
                   ? `<button type="button" class="outline" data-u-pwd="${key}" style="padding:4px 10px;font-size:11px">Сменить пароль</button>`
                   : ""
               }
@@ -538,6 +543,12 @@
               userName: g.author_name,
               isSelf: key === me.id,
             });
+        }
+        const viewBtn = section.querySelector("[data-u-view]");
+        if (viewBtn) {
+          viewBtn.onclick = () => {
+            window.open(`/view-as?user=${encodeURIComponent(key)}`, "_blank");
+          };
         }
         const delBtn = section.querySelector("[data-u-del]");
         if (delBtn) {
@@ -622,6 +633,7 @@
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;padding-top:10px;border-top:1px solid var(--border)">
+            <button type="button" class="outline" data-au-view="${au.id}" style="flex:1;font-size:12px" title="Открыть кабинет этого участника в новой вкладке">Кабинет</button>
             <button type="button" class="outline" data-au-pwd="${au.id}" style="flex:1;font-size:12px">Сменить пароль</button>
             ${
               au.id !== me.id
@@ -630,6 +642,9 @@
             }
           </div>`;
 
+        card.querySelector("[data-au-view]").onclick = () => {
+          window.open(`/view-as?user=${encodeURIComponent(au.id)}`, "_blank");
+        };
         card.querySelector("[data-au-pwd]").onclick = () => {
           WeekPlanner.openPasswordModal({
             userId: au.id,

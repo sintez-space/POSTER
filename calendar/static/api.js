@@ -1,5 +1,16 @@
+function viewAsUserId() {
+  if (!location.pathname.startsWith("/view-as")) return "";
+  return new URLSearchParams(location.search).get("user") || "";
+}
+
+function withViewAs(headers) {
+  const id = viewAsUserId();
+  if (!id) return headers;
+  return { ...headers, "X-View-As": id };
+}
+
 async function api(path, opts = {}) {
-  const headers = { ...(opts.headers || {}) };
+  const headers = withViewAs({ ...(opts.headers || {}) });
   if (opts.body && !(opts.body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
@@ -23,8 +34,9 @@ async function api(path, opts = {}) {
 }
 
 function apiForm(path, formData, method = "POST", onProgress = null) {
+  const viewHeaders = withViewAs({});
   if (!onProgress) {
-    return fetch(path, { method, credentials: "same-origin", body: formData }).then(async (res) => {
+    return fetch(path, { method, credentials: "same-origin", body: formData, headers: viewHeaders }).then(async (res) => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data));
       return data;
@@ -34,6 +46,8 @@ function apiForm(path, formData, method = "POST", onProgress = null) {
     const xhr = new XMLHttpRequest();
     xhr.open(method, path, true);
     xhr.withCredentials = true;
+    const viewId = viewAsUserId();
+    if (viewId) xhr.setRequestHeader("X-View-As", viewId);
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable && onProgress) {
         onProgress(Math.round((ev.loaded / ev.total) * 100));

@@ -7,6 +7,10 @@
   <link rel="stylesheet" href="/static/common.css">
 </head>
 <body>
+  <div class="view-as-bar" id="viewAsBar" hidden>
+    <span id="viewAsText">Кабинет участника</span>
+    <button type="button" class="outline" id="viewAsClose">Закрыть вкладку</button>
+  </div>
   <header class="top-dashboard-bar">
     <div class="mini-cal-wrap">
       <div class="mini-cal-box" id="miniMonthMount" title="Нажмите на день — сетка начнётся с него"></div>
@@ -462,6 +466,14 @@
       CopyFields.populateCatalogSelect(copyRoot);
       CopyFields.applyTagRole(copyRoot);
       syncHeaderUser();
+      if (viewAsUserId()) {
+        const bar = document.getElementById("viewAsBar");
+        bar.hidden = false;
+        document.getElementById("viewAsText").textContent =
+          `Кабинет участника: ${me.display_name || me.login}. Календарь, карточки и профиль — как видит он. Изменения сразу попадают в общую систему.`;
+        document.getElementById("logout").textContent = "Закрыть";
+        document.title = `Кабинет: ${me.display_name || me.login}`;
+      }
 
       planner = WeekPlanner.init({
         mount: document.getElementById("weekMount"),
@@ -1214,7 +1226,12 @@
     };
     document.getElementById("closeBtnTop").onclick = closeModal;
     modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+    document.getElementById("viewAsClose").onclick = () => window.close();
     document.getElementById("logout").onclick = async () => {
+      if (viewAsUserId()) {
+        window.close();
+        return;
+      }
       await api("/api/logout", { method: "POST" });
       location.href = "/login.html";
     };
