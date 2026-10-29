@@ -188,6 +188,7 @@ def build_day_zip(date_iso: str) -> tuple[bytes, str]:
                 "author_name": author_name,
                 "author_handles": author_handles,
                 "series_tag": (sub["descriptions"] or {}).get("series_tag", ""),
+                "catalog_tag": (sub["descriptions"] or {}).get("catalog_tag", ""),
                 "slot_folder": slot_folder,
                 "files": {
                     "video": video_out,

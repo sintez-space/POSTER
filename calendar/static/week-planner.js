@@ -52,6 +52,16 @@ const WeekPlanner = (() => {
     }
   }
 
+  const CATALOG_PALETTE = {};
+
+  function setCatalogPalette(tagList) {
+    if (!Array.isArray(tagList)) return;
+    for (const key of Object.keys(CATALOG_PALETTE)) delete CATALOG_PALETTE[key];
+    for (const t of tagList) {
+      if (t && t.name) CATALOG_PALETTE[t.name] = hexToPalette(t.color || "#60a5fa");
+    }
+  }
+
   let dragId = null;
   let selectedCardId = null;
 
@@ -187,6 +197,16 @@ const WeekPlanner = (() => {
   function seriesTagOf(item) {
     const d = (item && item.descriptions) || {};
     return (d.series_tag || "").trim();
+  }
+
+  function catalogTagOf(item) {
+    const d = (item && item.descriptions) || {};
+    return (d.catalog_tag || "").trim();
+  }
+
+  function pillStyle(palette) {
+    if (!palette) return "";
+    return ` style="--series-accent:${palette.accent};--series-bg:${palette.bg};--series-border:${palette.border}"`;
   }
 
   function escHtml(str) {
@@ -525,14 +545,19 @@ const WeekPlanner = (() => {
     const foreign = item.is_mine === false && me.role !== "admin";
     const locked = isLocked(item);
     const sTag = seriesTagOf(item);
-    const palette = sTag ? SERIES_PALETTE[sTag] || hexToPalette("#2dd4bf") : null;
+    const cTag = catalogTagOf(item);
+    const palette = sTag
+      ? SERIES_PALETTE[sTag] || hexToPalette("#2dd4bf")
+      : cTag
+        ? CATALOG_PALETTE[cTag] || hexToPalette("#60a5fa")
+        : null;
     const isCarousel = item.media_kind === "carousel";
 
     el.className =
       "week-card" +
       (foreign ? " foreign" : "") +
       (locked ? " locked" : "") +
-      (sTag ? " has-series" : "") +
+      (sTag || cTag ? " has-series" : "") +
       (isCarousel ? " is-carousel" : "") +
       (halfSlot ? " half-slot" : "") +
       (compact ? " compact" : "") +
@@ -579,6 +604,10 @@ const WeekPlanner = (() => {
     const title = escHtml(titleOf(item));
     const kindBadge = isCarousel ? `<span class="carousel-kind-pill" title="Карусель фото">Карусель</span>` : "";
     const seriesBadge = sTag ? `<span class="series-pill">${escHtml(sTag)}</span>` : "";
+    const catalogPalette = cTag ? CATALOG_PALETTE[cTag] || hexToPalette("#60a5fa") : null;
+    const catalogBadge = cTag
+      ? `<span class="series-pill catalog-pill"${pillStyle(catalogPalette)}>${escHtml(cTag)}</span>`
+      : "";
     const foreignBadge = foreign
       ? `<span class="slot-foreign-pill" title="Чужая карточка — редактировать или снять со слота нельзя">Чужой</span>`
       : "";
@@ -626,13 +655,13 @@ const WeekPlanner = (() => {
       </div>
       <div class="week-card-body">
         <div class="week-card-top">
-          <div class="week-card-badges">${kindBadge}${seriesBadge}${lockBadge}${foreignBadge}</div>
+          <div class="week-card-badges">${kindBadge}${seriesBadge}${catalogBadge}${lockBadge}${foreignBadge}</div>
         </div>
         <div class="week-card-title">${title}</div>
         <div class="week-card-meta">${author}</div>
       </div>
       <div class="week-card-overlay-bottom">
-        ${seriesBadge}
+        ${seriesBadge}${catalogBadge}
         <div class="overlay-author-name">${author}</div>
       </div>`;
 
@@ -805,6 +834,8 @@ const WeekPlanner = (() => {
       prevBtn,
       nextBtn,
       miniMonthMount,
+      filterBar,
+      getFilterIndex,
       me,
       onOpen,
       onCreate,
@@ -816,6 +847,7 @@ const WeekPlanner = (() => {
     let viewStart = mondayOf(new Date());
     let items = [];
     let loadSeq = 0;
+    let filterChips = [];
 
     function findItem(id) {
       return items.find((x) => x.id === id) || (resolveItem ? resolveItem(id) : null);
@@ -824,6 +856,188 @@ const WeekPlanner = (() => {
     function currentDays() {
       return visibleWorkdays(viewStart, 5);
     }
+
+    function itemMatchesFilter(item) {
+      if (!filterChips.length) return true;
+      const tagNames = [seriesTagOf(item), catalogTagOf(item)]
+        .filter(Boolean)
+        .map((s) => s.toLowerCase());
+      const author = String((item && item.author_name) || "").trim().toLowerCase();
+      return filterChips.some((chip) => {
+        const needle = String(chip.name || "").trim().toLowerCase();
+        if (!needle) return false;
+        if (chip.kind === "name") return author === needle;
+        return tagNames.includes(needle);
+      });
+    }
+
+    function setupFilterBar() {
+      if (!filterBar) return;
+      filterBar.innerHTML = "";
+      const chipsEl = document.createElement("div");
+      chipsEl.className = "cal-filter-chips";
+      const wrap = document.createElement("div");
+      wrap.className = "cal-filter-input-wrap";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "Тег или имя участника";
+      input.autocomplete = "off";
+      input.setAttribute("aria-label", "Фильтр по тегу или имени");
+      const suggest = document.createElement("div");
+      suggest.className = "cal-filter-suggest";
+      suggest.hidden = true;
+      const resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.className = "outline";
+      resetBtn.textContent = "Сбросить";
+      wrap.appendChild(input);
+      wrap.appendChild(suggest);
+      filterBar.appendChild(chipsEl);
+      filterBar.appendChild(wrap);
+      filterBar.appendChild(resetBtn);
+
+      let suggestItems = [];
+      let activeIdx = 0;
+
+      function paintChips() {
+        chipsEl.innerHTML = "";
+        for (const chip of filterChips) {
+          const el = document.createElement("button");
+          el.type = "button";
+          el.className = "cal-filter-chip" + (chip.kind === "name" ? " is-name" : " is-tag");
+          el.title = chip.kind === "name" ? "Убрать имя" : "Убрать тег";
+          el.innerHTML = `<span>${escHtml(chip.kind === "name" ? chip.name : "#" + chip.name)}</span><span class="cal-filter-x" aria-hidden="true">×</span>`;
+          el.onclick = () => {
+            filterChips = filterChips.filter((c) => !(c.kind === chip.kind && c.name === chip.name));
+            paintChips();
+            render();
+          };
+          chipsEl.appendChild(el);
+        }
+      }
+
+      function indexOfFilter() {
+        const src = typeof getFilterIndex === "function" ? getFilterIndex() || {} : {};
+        const tags = [];
+        const seenTags = new Set();
+        for (const t of src.tags || []) {
+          const name = String(t && t.name ? t.name : t || "").trim();
+          const key = name.toLowerCase();
+          if (!name || seenTags.has(key)) continue;
+          seenTags.add(key);
+          tags.push({ kind: "tag", name });
+        }
+        const names = [];
+        const seenNames = new Set();
+        for (const raw of src.names || []) {
+          const name = String(raw && raw.display_name ? raw.display_name : raw || "").trim();
+          const key = name.toLowerCase();
+          if (!name || seenNames.has(key)) continue;
+          seenNames.add(key);
+          names.push({ kind: "name", name });
+        }
+        return { tags, names };
+      }
+
+      function hideSuggest() {
+        suggest.hidden = true;
+        suggest.innerHTML = "";
+        suggestItems = [];
+      }
+
+      function paintSuggest() {
+        suggest.innerHTML = "";
+        suggestItems.forEach((item, idx) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "cal-filter-opt" + (idx === activeIdx ? " active" : "");
+          btn.innerHTML = `<span>${escHtml(item.kind === "name" ? item.name : "#" + item.name)}</span><em>${
+            item.kind === "name" ? "участник" : "тег"
+          }</em>`;
+          btn.onmousedown = (e) => {
+            e.preventDefault();
+            pinChip(item);
+          };
+          suggest.appendChild(btn);
+        });
+        suggest.hidden = suggestItems.length === 0;
+      }
+
+      function refreshSuggest() {
+        const q = input.value.trim().replace(/^#+/, "").toLowerCase();
+        if (!q) {
+          hideSuggest();
+          return;
+        }
+        const src = indexOfFilter();
+        const pool = src.tags.concat(src.names);
+        suggestItems = pool
+          .filter((item) => item.name.toLowerCase().startsWith(q))
+          .filter((item) => !filterChips.some((c) => c.kind === item.kind && c.name.toLowerCase() === item.name.toLowerCase()))
+          .slice(0, 8);
+        activeIdx = 0;
+        paintSuggest();
+      }
+
+      function pinChip(item) {
+        if (!item || !item.name) return;
+        if (filterChips.some((c) => c.kind === item.kind && c.name.toLowerCase() === item.name.toLowerCase())) {
+          input.value = "";
+          hideSuggest();
+          return;
+        }
+        filterChips = filterChips.concat([{ kind: item.kind, name: item.name }]);
+        input.value = "";
+        hideSuggest();
+        paintChips();
+        render();
+      }
+
+      input.addEventListener("input", refreshSuggest);
+      input.addEventListener("focus", refreshSuggest);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" && suggestItems.length) {
+          e.preventDefault();
+          activeIdx = (activeIdx + 1) % suggestItems.length;
+          paintSuggest();
+          return;
+        }
+        if (e.key === "ArrowUp" && suggestItems.length) {
+          e.preventDefault();
+          activeIdx = (activeIdx - 1 + suggestItems.length) % suggestItems.length;
+          paintSuggest();
+          return;
+        }
+        if (e.key === "Escape") {
+          hideSuggest();
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (suggestItems.length) pinChip(suggestItems[activeIdx] || suggestItems[0]);
+          return;
+        }
+        if (e.key === "Backspace" && !input.value && filterChips.length) {
+          filterChips = filterChips.slice(0, -1);
+          paintChips();
+          render();
+        }
+      });
+      resetBtn.onclick = () => {
+        if (!filterChips.length && !input.value) return;
+        filterChips = [];
+        input.value = "";
+        hideSuggest();
+        paintChips();
+        render();
+      };
+      document.addEventListener("click", (e) => {
+        if (!filterBar.contains(e.target)) hideSuggest();
+      });
+      paintChips();
+    }
+
+    setupFilterBar();
 
     prevBtn.onclick = () => {
       viewStart = shiftWorkdays(viewStart, -5);
@@ -1074,7 +1288,12 @@ const WeekPlanner = (() => {
 
           const sub1 = document.createElement("div");
           sub1.className = "week-subslot subslot-primary";
-          if (item1) {
+          if (item1 && !itemMatchesFilter(item1)) {
+            const hidden = document.createElement("div");
+            hidden.className = "week-filter-hide";
+            hidden.title = "Скрыто фильтром";
+            sub1.appendChild(hidden);
+          } else if (item1) {
             sub1.appendChild(
               buildCard(item1, {
                 me,
@@ -1107,7 +1326,12 @@ const WeekPlanner = (() => {
 
           const sub2 = document.createElement("div");
           sub2.className = "week-subslot subslot-carousel" + (item2 || leftIsCarousel ? " is-filled" : " is-mini");
-          if (item2) {
+          if (item2 && !itemMatchesFilter(item2)) {
+            const hidden = document.createElement("div");
+            hidden.className = "week-filter-hide";
+            hidden.title = "Скрыто фильтром";
+            sub2.appendChild(hidden);
+          } else if (item2) {
             sub2.appendChild(
               buildCard(item2, {
                 me,
@@ -1207,6 +1431,7 @@ const WeekPlanner = (() => {
     canClearSlot,
     canDeleteItem,
     setSeriesPalette,
+    setCatalogPalette,
     SLOT_HOURS,
     DEFAULT_STATUS,
     SERIES_PALETTE,

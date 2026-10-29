@@ -77,6 +77,11 @@ def init_db():
                 created_at TEXT NOT NULL,
                 PRIMARY KEY (user_id, name)
             );
+            CREATE TABLE IF NOT EXISTS catalog_tags (
+                name TEXT PRIMARY KEY,
+                color TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions(user_id);
             CREATE INDEX IF NOT EXISTS idx_submissions_sched ON submissions(scheduled_at);
             """

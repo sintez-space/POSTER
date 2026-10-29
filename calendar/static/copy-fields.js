@@ -1,11 +1,18 @@
 /** Поля описаний: общий текст + личные теги связки с цветом + уникальные параметры из профиля + опциональные переопределения по сетям. */
 const CopyFields = {
-  /** Только теги, созданные самим текущим пользователем (по умолчанию пусто). */
+  /** Свои теги автора открытой карточки. */
   seriesTagsList: [],
+  /** Все личные теги всех авторов — для фильтра и цвета карточек. */
+  allSeriesTags: [],
+  /** Общие теги, которые создаёт администратор. */
+  catalogTagsList: [],
+  viewer: null,
+  tagOwnerId: "",
 
   keys: [
     "base",
     "series_tag",
+    "catalog_tag",
     "instagram",
     "tiktok",
     "youtube_title",
@@ -26,6 +33,7 @@ const CopyFields = {
 
   uniqueParamKeys: [
     "series_tag",
+    "catalog_tag",
     "tags",
     "instagram_collaborators",
     "instagram_reel_tags",
@@ -34,7 +42,8 @@ const CopyFields = {
 
   labels: {
     base: "Универсальный текст",
-    series_tag: "Тег связки карточек (до 10 карточек одного цвета)",
+    series_tag: "Свой тег",
+    catalog_tag: "Общий тег",
     instagram: "Instagram — подпись",
     tiktok: "TikTok — подпись",
     youtube_title: "YouTube — название",
@@ -49,7 +58,9 @@ const CopyFields = {
   hints: {
     base: "Идёт во все публикации, если для сети не включено своё описание ниже.",
     series_tag:
-      "У каждого автора свой список тегов. Создайте тег (одно слово + цвет) — после создания он появится в выпадушке.",
+      "Его создаёте вы сами: одно слово и цвет. «Удалить» убирает тег из списка и со всех ваших карточек.",
+    catalog_tag:
+      "Готовый тег администратора. Его можно выбрать или убрать с карточки. Создаёт и удаляет из списка только админ.",
     tags: "По умолчанию подставлены ваши теги из профиля. Можно дописать свои или убрать лишние (# или без, через запятую).",
     instagram_collaborators:
       "По умолчанию подставлены ваши ники из профиля. Можно дописать или изменить (логины через запятую, без @).",
@@ -71,13 +82,46 @@ const CopyFields = {
     return map[field] || null;
   },
 
+  setViewer(me) {
+    CopyFields.viewer = me || null;
+  },
+
   setSeriesTags(payload) {
     const mine = Array.isArray(payload) ? payload : (payload && payload.mine) || [];
     const all = Array.isArray(payload) ? payload : (payload && payload.all) || mine;
     CopyFields.seriesTagsList = mine;
+    CopyFields.allSeriesTags = all;
     if (typeof WeekPlanner !== "undefined" && WeekPlanner.setSeriesPalette) {
       WeekPlanner.setSeriesPalette(all);
     }
+  },
+
+  setCatalogTags(payload) {
+    const items = Array.isArray(payload) ? payload : (payload && payload.items) || [];
+    CopyFields.catalogTagsList = items;
+    if (typeof WeekPlanner !== "undefined" && WeekPlanner.setCatalogPalette) {
+      WeekPlanner.setCatalogPalette(items);
+    }
+    if (typeof CopyFields.onCatalogChanged === "function") CopyFields.onCatalogChanged(items);
+  },
+
+  async ensureOwnerTags(ownerId) {
+    const id = ownerId || (CopyFields.viewer && CopyFields.viewer.id) || "";
+    CopyFields.tagOwnerId = id;
+    const q = id ? `?owner_id=${encodeURIComponent(id)}` : "";
+    const tags = await api(`/api/series-tags${q}`);
+    CopyFields.setSeriesTags(tags);
+    const catalog = await api("/api/catalog-tags");
+    CopyFields.setCatalogTags(catalog);
+    return tags;
+  },
+
+  applyTagRole(root) {
+    const admin = !!(CopyFields.viewer && CopyFields.viewer.role === "admin");
+    const creator = root.querySelector("[data-catalog-creator]");
+    const del = root.querySelector("[data-delete-catalog-tag]");
+    if (creator) creator.hidden = !admin;
+    if (del) del.hidden = !admin;
   },
 
   populateSeriesSelect(root, selectedVal) {
@@ -97,6 +141,33 @@ const CopyFields = {
       opt.value = item.name;
       opt.textContent = item.name;
       opt.dataset.color = item.color;
+      sel.appendChild(opt);
+    }
+    if (current && !seen.has(current)) {
+      const opt = document.createElement("option");
+      opt.value = current;
+      opt.textContent = current;
+      sel.appendChild(opt);
+    }
+    sel.value = current || "";
+  },
+
+  populateCatalogSelect(root, selectedVal) {
+    const sel = root.querySelector('[data-copy-field="catalog_tag"]');
+    if (!sel || sel.tagName !== "SELECT") return;
+    const current = selectedVal !== undefined ? selectedVal : sel.value;
+    sel.innerHTML = "";
+    const emptyOpt = document.createElement("option");
+    emptyOpt.value = "";
+    emptyOpt.textContent = "— без общего тега —";
+    sel.appendChild(emptyOpt);
+    const seen = new Set();
+    for (const item of CopyFields.catalogTagsList) {
+      seen.add(item.name);
+      const opt = document.createElement("option");
+      opt.value = item.name;
+      opt.textContent = item.name;
+      opt.dataset.color = item.color || "";
       sel.appendChild(opt);
     }
     if (current && !seen.has(current)) {
@@ -174,6 +245,8 @@ const CopyFields = {
     }
 
     CopyFields.populateSeriesSelect(root, d.series_tag || "");
+    CopyFields.populateCatalogSelect(root, d.catalog_tag || "");
+    CopyFields.applyTagRole(root);
     for (const key of CopyFields.keys) {
       const el = root.querySelector(`[data-copy-field="${key}"]`);
       if (el) el.value = d[key] || "";
@@ -218,6 +291,8 @@ const CopyFields = {
 
   bindOverrides(root, onTagsChanged) {
     CopyFields.populateSeriesSelect(root);
+    CopyFields.populateCatalogSelect(root);
+    CopyFields.applyTagRole(root);
     if (root.dataset.copyOverridesBound) return;
     root.dataset.copyOverridesBound = "1";
 
@@ -253,13 +328,103 @@ const CopyFields = {
         }
         const color = colorInp ? colorInp.value : "#2dd4bf";
         try {
+          const body = { name: raw, color };
+          if (
+            CopyFields.viewer &&
+            CopyFields.viewer.role === "admin" &&
+            CopyFields.tagOwnerId &&
+            CopyFields.tagOwnerId !== CopyFields.viewer.id
+          ) {
+            body.user_id = CopyFields.tagOwnerId;
+          }
           const res = await api("/api/series-tags", {
             method: "POST",
-            body: JSON.stringify({ name: raw, color }),
+            body: JSON.stringify(body),
           });
           CopyFields.setSeriesTags(res);
           CopyFields.populateSeriesSelect(root, raw);
           if (nameInp) nameInp.value = "";
+          if (onTagsChanged) onTagsChanged(res);
+        } catch (err) {
+          alert(err.message || String(err));
+        }
+      });
+    }
+
+    const deleteSeriesBtn = root.querySelector("[data-delete-series-tag]");
+    if (deleteSeriesBtn) {
+      deleteSeriesBtn.addEventListener("click", async () => {
+        const sel = root.querySelector('[data-copy-field="series_tag"]');
+        const name = sel ? sel.value.trim() : "";
+        if (!name) {
+          alert("Сначала выберите свой тег, который нужно удалить.");
+          return;
+        }
+        if (!confirm(`Удалить тег «${name}»? Он пропадёт из списка и снимется со всех карточек этого автора.`)) return;
+        try {
+          const q = CopyFields.tagOwnerId ? `?owner_id=${encodeURIComponent(CopyFields.tagOwnerId)}` : "";
+          const res = await api(`/api/series-tags/${encodeURIComponent(name)}${q}`, { method: "DELETE" });
+          CopyFields.setSeriesTags(res);
+          CopyFields.populateSeriesSelect(root, "");
+          if (onTagsChanged) onTagsChanged(res);
+        } catch (err) {
+          alert(err.message || String(err));
+        }
+      });
+    }
+
+    const clearCatalogBtn = root.querySelector("[data-clear-catalog-tag]");
+    if (clearCatalogBtn) {
+      clearCatalogBtn.addEventListener("click", () => {
+        const sel = root.querySelector('[data-copy-field="catalog_tag"]');
+        if (sel) sel.value = "";
+      });
+    }
+
+    const addCatalogBtn = root.querySelector("[data-add-catalog-tag]");
+    if (addCatalogBtn) {
+      addCatalogBtn.addEventListener("click", async () => {
+        const nameInp = root.querySelector("[data-new-catalog-name]");
+        const colorInp = root.querySelector("[data-new-catalog-color]");
+        const raw = (nameInp ? nameInp.value : "").trim();
+        if (!raw) {
+          alert("Введите название общего тега (одно слово без пробелов).");
+          return;
+        }
+        if (/\s/.test(raw)) {
+          alert("Название тега должно состоять из одного слова без пробелов.");
+          return;
+        }
+        const color = colorInp ? colorInp.value : "#60a5fa";
+        try {
+          const res = await api("/api/catalog-tags", {
+            method: "POST",
+            body: JSON.stringify({ name: raw, color }),
+          });
+          CopyFields.setCatalogTags(res);
+          CopyFields.populateCatalogSelect(root, raw);
+          if (nameInp) nameInp.value = "";
+          if (onTagsChanged) onTagsChanged(res);
+        } catch (err) {
+          alert(err.message || String(err));
+        }
+      });
+    }
+
+    const deleteCatalogBtn = root.querySelector("[data-delete-catalog-tag]");
+    if (deleteCatalogBtn) {
+      deleteCatalogBtn.addEventListener("click", async () => {
+        const sel = root.querySelector('[data-copy-field="catalog_tag"]');
+        const name = sel ? sel.value.trim() : "";
+        if (!name) {
+          alert("Сначала выберите общий тег, который нужно удалить из списка.");
+          return;
+        }
+        if (!confirm(`Удалить общий тег «${name}»? Он пропадёт у всех и снимется со всех карточек.`)) return;
+        try {
+          const res = await api(`/api/catalog-tags/${encodeURIComponent(name)}`, { method: "DELETE" });
+          CopyFields.setCatalogTags(res);
+          CopyFields.populateCatalogSelect(root, "");
           if (onTagsChanged) onTagsChanged(res);
         } catch (err) {
           alert(err.message || String(err));

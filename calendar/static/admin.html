@@ -75,6 +75,8 @@
   <main class="layout-full">
     <p id="exportMsg" class="text-primary" style="margin:0 0 4px" hidden></p>
     <!-- Вкладка 1: Календарь -->
+    <div class="catalog-admin-bar" id="catalogAdminBar"></div>
+    <div class="cal-filter-bar" id="calFilterBar"></div>
     <div id="weekMount"></div>
     <!-- Вкладка 2: Юзеры (карточки по юзерам: В календаре / Вне календаря) -->
     <div id="usersTabMount" class="admin-tab-pane" hidden></div>
@@ -143,18 +145,33 @@
                 <div class="counter" data-copy-counter="base"></div>
               </div>
               <div class="copy-subsection">
-                <div class="copy-section-head"><span class="badge">Уникальные параметры и тег связки</span></div>
+                <div class="copy-section-head"><span class="badge">Уникальные параметры и теги</span></div>
                 <p class="copy-hint copy-hint-block">Добавляются к публикации отдельно от текста сетей — и при общем описании, и при своём.</p>
                 <div class="field">
                   <label data-for="series_tag"></label>
                   <p class="copy-hint" data-hint="series_tag"></p>
                   <div class="series-tag-row">
                     <select data-copy-field="series_tag"></select>
+                    <button type="button" class="outline danger-text" data-delete-series-tag title="Удалить выбранный свой тег автора">Удалить</button>
                   </div>
                   <div class="series-tag-creator">
                     <input type="text" data-new-tag-name placeholder="НовыйТег (одно слово)" maxlength="24">
                     <input type="color" data-new-tag-color value="#2dd4bf" title="Цвет тега">
                     <button type="button" class="outline" data-add-series-tag>+ Создать тег</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label data-for="catalog_tag"></label>
+                  <p class="copy-hint" data-hint="catalog_tag"></p>
+                  <div class="series-tag-row">
+                    <select data-copy-field="catalog_tag"></select>
+                    <button type="button" class="outline" data-clear-catalog-tag title="Убрать общий тег с этой карточки">Убрать</button>
+                    <button type="button" class="outline danger-text" data-delete-catalog-tag title="Удалить общий тег из списка администратора" hidden>Удалить</button>
+                  </div>
+                  <div class="series-tag-creator" data-catalog-creator hidden>
+                    <input type="text" data-new-catalog-name placeholder="Общий тег (одно слово)" maxlength="24">
+                    <input type="color" data-new-catalog-color value="#60a5fa" title="Цвет общего тега">
+                    <button type="button" class="outline" data-add-catalog-tag>+ Создать общий тег</button>
                   </div>
                 </div>
                 <div class="field">
@@ -284,7 +301,7 @@
   <script src="/static/copy-fields.js"></script>
   <script src="/static/week-planner.js"></script>
   <script>
-    let me, limits, poolItems = [], authorsList = [], planner, modalSubId = null, draftNewState = null;
+    let me, limits, poolItems = [], authorsList = [], planner, modalSubId = null, draftNewState = null, participantNames = [];
     let activeAdminTab = "calendar";
     let modalScheduledAt = "";
     let modalSlotPart = 1;
@@ -352,6 +369,8 @@
       document.getElementById("tabPendingBtn").classList.toggle("active", tab === "pending");
 
       document.getElementById("weekMount").hidden = tab !== "calendar";
+      document.getElementById("calFilterBar").hidden = tab !== "calendar";
+      document.getElementById("catalogAdminBar").hidden = tab !== "calendar";
       document.getElementById("usersTabMount").hidden = tab !== "users";
       document.getElementById("authorsTabMount").hidden = tab !== "authors";
       document.getElementById("pendingTabMount").hidden = tab !== "pending";
@@ -644,8 +663,14 @@
           el.hasAttribute("data-copy-field") ||
           el.hasAttribute("data-copy-override") ||
           el.hasAttribute("data-add-series-tag") ||
+          el.hasAttribute("data-delete-series-tag") ||
+          el.hasAttribute("data-clear-catalog-tag") ||
+          el.hasAttribute("data-delete-catalog-tag") ||
+          el.hasAttribute("data-add-catalog-tag") ||
           el.hasAttribute("data-new-tag-name") ||
-          el.hasAttribute("data-new-tag-color")
+          el.hasAttribute("data-new-tag-color") ||
+          el.hasAttribute("data-new-catalog-name") ||
+          el.hasAttribute("data-new-catalog-color")
         ) {
           el.disabled = readonly;
         }
@@ -873,7 +898,7 @@
       }
     }
 
-    function openNewDraftModal(scheduledAt = "", slotPart = 1, mediaKind = "video") {
+    async function openNewDraftModal(scheduledAt = "", slotPart = 1, mediaKind = "video") {
       modalSubId = null;
       draftNewState = { scheduledAt, slotPart, mediaKind };
       modalScheduledAt = scheduledAt || "";
@@ -887,6 +912,7 @@
         ? `${fmtLocal(modalScheduledAt)} (слот ${modalSlotPart})`
         : "В пуле (не в расписании)";
 
+      try { await CopyFields.ensureOwnerTags(me.id); } catch (_) {}
       CopyFields.writeForm(copyRoot, {}, me);
       CopyFields.bindCounters(copyRoot, limits);
       document.getElementById("modalErr").textContent = "";
@@ -906,7 +932,7 @@
       modal.classList.add("open");
     }
 
-    function openModal(id, sub) {
+    async function openModal(id, sub) {
       modalSubId = id;
       draftNewState = null;
       sub = sub || poolItems.find((x) => x.id === id) || planner.findItem(id);
@@ -925,6 +951,7 @@
         `${sub.author_name || "—"} · ${
           inSlot ? `${fmtLocal(sub.scheduled_at)} (слот ${sub.slot_part || 1})` : "В пуле (не в расписании)"
         }${locked ? " · Слот подтверждён и зафиксирован (снимите фиксацию для правок)" : ""}`;
+      try { await CopyFields.ensureOwnerTags(sub.user_id); } catch (_) {}
       CopyFields.writeForm(copyRoot, d, null);
       CopyFields.bindCounters(copyRoot, limits);
       document.getElementById("subVideo").value = "";
@@ -1112,12 +1139,117 @@
       location.href = "/login.html";
     };
 
+    function filterIndex() {
+      const tags = [];
+      const seen = new Set();
+      const pushTag = (name) => {
+        const n = String(name || "").trim();
+        const key = n.toLowerCase();
+        if (!n || seen.has(key)) return;
+        seen.add(key);
+        tags.push({ name: n });
+      };
+      for (const t of CopyFields.allSeriesTags || []) pushTag(t.name);
+      for (const t of CopyFields.catalogTagsList || []) pushTag(t.name);
+      const consider = poolItems.concat(planner ? planner.getItems() : []);
+      for (const it of consider) {
+        pushTag((it.descriptions || {}).series_tag);
+        pushTag((it.descriptions || {}).catalog_tag);
+      }
+      return { tags, names: participantNames };
+    }
+
+    function renderCatalogAdmin() {
+      const bar = document.getElementById("catalogAdminBar");
+      if (!bar) return;
+      bar.innerHTML = "";
+      const label = document.createElement("span");
+      label.className = "catalog-admin-label";
+      label.textContent = "Общие теги";
+      const chips = document.createElement("div");
+      chips.className = "catalog-admin-chips";
+      for (const t of CopyFields.catalogTagsList || []) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "cal-filter-chip is-tag";
+        chip.title = "Удалить общий тег";
+        const chipLabel = document.createElement("span");
+        chipLabel.textContent = t.name;
+        const chipX = document.createElement("span");
+        chipX.className = "cal-filter-x";
+        chipX.setAttribute("aria-hidden", "true");
+        chipX.textContent = "×";
+        chip.appendChild(chipLabel);
+        chip.appendChild(chipX);
+        chip.onclick = async () => {
+          if (!confirm(`Удалить общий тег «${t.name}»? Он снимется со всех карточек.`)) return;
+          try {
+            const res = await api(`/api/catalog-tags/${encodeURIComponent(t.name)}`, { method: "DELETE" });
+            CopyFields.setCatalogTags(res);
+            CopyFields.populateCatalogSelect(copyRoot, "");
+            if (planner) planner.load();
+          } catch (err) {
+            alert(err.message || String(err));
+          }
+        };
+        chips.appendChild(chip);
+      }
+      const nameInp = document.createElement("input");
+      nameInp.type = "text";
+      nameInp.maxLength = 24;
+      nameInp.placeholder = "Новый общий тег";
+      const colorInp = document.createElement("input");
+      colorInp.type = "color";
+      colorInp.value = "#60a5fa";
+      colorInp.title = "Цвет общего тега";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "outline";
+      btn.textContent = "Создать";
+      btn.onclick = async () => {
+        const raw = nameInp.value.trim();
+        if (!raw) {
+          alert("Введите название общего тега (одно слово без пробелов).");
+          return;
+        }
+        if (/\s/.test(raw)) {
+          alert("Название тега должно состоять из одного слова без пробелов.");
+          return;
+        }
+        try {
+          const res = await api("/api/catalog-tags", {
+            method: "POST",
+            body: JSON.stringify({ name: raw, color: colorInp.value }),
+          });
+          nameInp.value = "";
+          CopyFields.setCatalogTags(res);
+          CopyFields.populateCatalogSelect(copyRoot);
+        } catch (err) {
+          alert(err.message || String(err));
+        }
+      };
+      bar.appendChild(label);
+      bar.appendChild(chips);
+      bar.appendChild(nameInp);
+      bar.appendChild(colorInp);
+      bar.appendChild(btn);
+    }
+
+    CopyFields.onCatalogChanged = () => renderCatalogAdmin();
+
     (async () => {
       me = await api("/api/me");
       limits = await api("/api/limits");
-      const tags = await api("/api/series-tags");
-      CopyFields.setSeriesTags(tags);
+      CopyFields.setViewer(me);
+      try { await CopyFields.ensureOwnerTags(me.id); } catch (_) {}
+      try {
+        const people = await api("/api/participants");
+        participantNames = (people.items || []).map((x) => x.display_name).filter(Boolean);
+      } catch (_) {}
       CopyFields.populateSeriesSelect(copyRoot);
+      CopyFields.populateCatalogSelect(copyRoot);
+      CopyFields.applyTagRole(copyRoot);
+      renderCatalogAdmin();
 
       planner = WeekPlanner.init({
         mount: document.getElementById("weekMount"),
@@ -1125,6 +1257,8 @@
         prevBtn: document.getElementById("prev"),
         nextBtn: document.getElementById("next"),
         miniMonthMount: document.getElementById("miniMonthMount"),
+        filterBar: document.getElementById("calFilterBar"),
+        getFilterIndex: filterIndex,
         me,
         statusLabels: STATUS_RU,
         onOpen: (id, item) => openModal(id, item),

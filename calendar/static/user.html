@@ -40,6 +40,7 @@
   </header>
 
   <main class="layout-full">
+    <div class="cal-filter-bar" id="calFilterBar"></div>
     <div id="weekMount"></div>
   </main>
 
@@ -105,18 +106,27 @@
                   <div class="counter" data-copy-counter="base"></div>
                 </div>
                 <div class="copy-subsection">
-                  <div class="copy-section-head"><span class="badge">Уникальные параметры и тег связки</span></div>
+                  <div class="copy-section-head"><span class="badge">Уникальные параметры и теги</span></div>
                   <p class="copy-hint copy-hint-block">По умолчанию поля ниже заполняются данными из вашего профиля (можно дописать или изменить).</p>
                   <div class="field">
                     <label data-for="series_tag"></label>
                     <p class="copy-hint" data-hint="series_tag"></p>
                     <div class="series-tag-row">
                       <select data-copy-field="series_tag"></select>
+                      <button type="button" class="outline danger-text" data-delete-series-tag title="Удалить выбранный свой тег из списка">Удалить</button>
                     </div>
                     <div class="series-tag-creator">
                       <input type="text" data-new-tag-name placeholder="НовыйТег (одно слово)" maxlength="24">
                       <input type="color" data-new-tag-color value="#2dd4bf" title="Цвет тега">
                       <button type="button" class="outline" data-add-series-tag>+ Создать тег</button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label data-for="catalog_tag"></label>
+                    <p class="copy-hint" data-hint="catalog_tag"></p>
+                    <div class="series-tag-row">
+                      <select data-copy-field="catalog_tag"></select>
+                      <button type="button" class="outline" data-clear-catalog-tag title="Убрать общий тег с этой карточки">Убрать</button>
                     </div>
                   </div>
                   <div class="field">
@@ -344,7 +354,7 @@
   <script src="/static/copy-fields.js"></script>
   <script src="/static/week-planner.js"></script>
   <script>
-    let me, limits, poolItems = [], planner, pendingAvatarBlob = null;
+    let me, limits, poolItems = [], planner, pendingAvatarBlob = null, participantNames = [];
     /** Черновик новой карточки (пока не нажали Сохранить — в БД не существует). */
     let draftNewState = null;
     /** Текущий выбранный слот в модалке (YYYY-MM-DDTHH:00 или ""). */
@@ -417,12 +427,40 @@
       }
     }
 
+    function filterIndex() {
+      const tags = [];
+      const seen = new Set();
+      const pushTag = (name) => {
+        const n = String(name || "").trim();
+        const key = n.toLowerCase();
+        if (!n || seen.has(key)) return;
+        seen.add(key);
+        tags.push({ name: n });
+      };
+      for (const t of CopyFields.allSeriesTags || []) pushTag(t.name);
+      for (const t of CopyFields.catalogTagsList || []) pushTag(t.name);
+      const consider = poolItems.concat(planner ? planner.getItems() : []);
+      for (const it of consider) {
+        pushTag((it.descriptions || {}).series_tag);
+        pushTag((it.descriptions || {}).catalog_tag);
+      }
+      return { tags, names: participantNames };
+    }
+
     async function init() {
       me = await api("/api/me");
       limits = await api("/api/limits");
-      const tags = await api("/api/series-tags");
-      CopyFields.setSeriesTags(tags);
+      CopyFields.setViewer(me);
+      try {
+        await CopyFields.ensureOwnerTags(me.id);
+      } catch (_) {}
+      try {
+        const people = await api("/api/participants");
+        participantNames = (people.items || []).map((x) => x.display_name).filter(Boolean);
+      } catch (_) {}
       CopyFields.populateSeriesSelect(copyRoot);
+      CopyFields.populateCatalogSelect(copyRoot);
+      CopyFields.applyTagRole(copyRoot);
       syncHeaderUser();
 
       planner = WeekPlanner.init({
@@ -431,6 +469,8 @@
         prevBtn: document.getElementById("prev"),
         nextBtn: document.getElementById("next"),
         miniMonthMount: document.getElementById("miniMonthMount"),
+        filterBar: document.getElementById("calFilterBar"),
+        getFilterIndex: filterIndex,
         me,
         statusLabels: STATUS_RU,
         onOpen: (id) => openSub(id),
@@ -479,6 +519,8 @@
           el.hasAttribute("data-copy-field") ||
           el.hasAttribute("data-copy-override") ||
           el.hasAttribute("data-add-series-tag") ||
+          el.hasAttribute("data-delete-series-tag") ||
+          el.hasAttribute("data-clear-catalog-tag") ||
           el.hasAttribute("data-new-tag-name") ||
           el.hasAttribute("data-new-tag-color")
         ) {
@@ -761,7 +803,7 @@
     }
 
     /** Открывает НОВУЮ карточку (не создавая её в БД, пока не нажата кнопка «Сохранить»). */
-    function openNewDraftModal(scheduledAt = "", slotPart = 1, mediaKind = "video") {
+    async function openNewDraftModal(scheduledAt = "", slotPart = 1, mediaKind = "video") {
       draftNewState = { scheduledAt, slotPart, mediaKind };
       modalScheduledAt = scheduledAt || "";
       modalSlotPart = slotPart || 1;
@@ -773,6 +815,7 @@
         mediaKind === "carousel" ? "Новая карусель" : "Новый рилс";
       updateModalMetaLabel();
 
+      try { await CopyFields.ensureOwnerTags(me.id); } catch (_) {}
       CopyFields.writeForm(copyRoot, {}, me);
       CopyFields.bindCounters(copyRoot, limits);
       document.getElementById("modalErr").textContent = "";
@@ -812,6 +855,7 @@
           inSlot ? `${fmtLocal(sub.scheduled_at)} (слот ${sub.slot_part || 1})` : "В пуле (не в расписании)"
         }${locked ? " · Слот подтверждён админом" : ""}`;
 
+      try { await CopyFields.ensureOwnerTags(sub.user_id); } catch (_) {}
       CopyFields.writeForm(copyRoot, d, sub.is_mine ? me : null);
       CopyFields.bindCounters(copyRoot, limits);
       document.getElementById("modalErr").textContent = "";

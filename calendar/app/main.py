@@ -288,24 +288,84 @@ def api_user_avatar(user_id: str):
     return FileResponse(path)
 
 
-@app.get("/api/series-tags")
-def api_get_series_tags(calendar_session: str | None = Cookie(default=None)):
-    """Возвращает личные теги текущего пользователя (для выпадушки) и палитру всех тегов (для отрисовки календаря)."""
-    user = auth.user_by_token(calendar_session)
-    if not user:
-        raise HTTPException(status_code=401, detail="нужен вход")
-    with db.connect() as conn:
-        my_rows = conn.execute(
-            "SELECT name, color FROM user_series_tags WHERE user_id = ? ORDER BY created_at ASC, name ASC",
-            (user["id"],),
-        ).fetchall()
-        all_rows = conn.execute(
-            "SELECT name, color FROM user_series_tags ORDER BY created_at ASC"
-        ).fetchall()
+def _tag_name(raw: str) -> str:
+    name = str(raw or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="введите название тега (одно слово)")
+    if re.search(r"\s", name) or "/" in name:
+        raise HTTPException(status_code=400, detail="название тега должно быть одним словом без пробелов")
+    if len(name) > 24:
+        raise HTTPException(status_code=400, detail="название тега — до 24 символов")
+    return name
+
+
+def _tag_color(raw: str, fallback: str = "#2dd4bf") -> str:
+    color = str(raw or fallback).strip()
+    if not re.match(r"^#[0-9a-fA-F]{6}$", color):
+        return fallback
+    return color
+
+
+def _series_tag_payload(conn, user_id: str):
+    my_rows = conn.execute(
+        "SELECT name, color FROM user_series_tags WHERE user_id = ? ORDER BY created_at ASC, name ASC",
+        (user_id,),
+    ).fetchall()
+    all_rows = conn.execute(
+        "SELECT name, color FROM user_series_tags ORDER BY created_at ASC"
+    ).fetchall()
     return {
         "mine": [{"name": r["name"], "color": r["color"]} for r in my_rows],
         "all": [{"name": r["name"], "color": r["color"]} for r in all_rows],
     }
+
+
+def _catalog_payload(conn):
+    rows = conn.execute(
+        "SELECT name, color FROM catalog_tags ORDER BY created_at ASC, name ASC"
+    ).fetchall()
+    return {"items": [{"name": r["name"], "color": r["color"]} for r in rows]}
+
+
+def _clear_description_field(conn, field: str, name: str, user_id: str | None = None):
+    if user_id:
+        rows = conn.execute(
+            "SELECT id, descriptions_json FROM submissions WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT id, descriptions_json FROM submissions").fetchall()
+    now = db._utc_now()
+    for row in rows:
+        try:
+            desc = json.loads(row["descriptions_json"] or "{}")
+        except Exception:
+            continue
+        if not isinstance(desc, dict) or (desc.get(field) or "").strip() != name:
+            continue
+        desc[field] = ""
+        conn.execute(
+            "UPDATE submissions SET descriptions_json = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(desc, ensure_ascii=False), now, row["id"]),
+        )
+
+
+def _series_owner_id(user: dict, owner_id: str) -> str:
+    target = (owner_id or "").strip() or user["id"]
+    if target != user["id"] and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="чужие теги может менять только админ")
+    return target
+
+
+@app.get("/api/series-tags")
+def api_get_series_tags(owner_id: str = "", calendar_session: str | None = Cookie(default=None)):
+    """Личные теги автора карточки и палитра всех своих тегов для календаря."""
+    user = auth.user_by_token(calendar_session)
+    if not user:
+        raise HTTPException(status_code=401, detail="нужен вход")
+    target = _series_owner_id(user, owner_id)
+    with db.connect() as conn:
+        return _series_tag_payload(conn, target)
 
 
 @app.post("/api/series-tags")
@@ -316,16 +376,9 @@ def api_create_series_tag(
     user = auth.user_by_token(calendar_session)
     if not user:
         raise HTTPException(status_code=401, detail="нужен вход")
-    raw_name = str(body.get("name") or "").strip()
-    if not raw_name:
-        raise HTTPException(status_code=400, detail="введите название тега (одно слово)")
-    if re.search(r"\s", raw_name):
-        raise HTTPException(status_code=400, detail="название тега должно быть одним словом без пробелов")
-    if len(raw_name) > 24:
-        raise HTTPException(status_code=400, detail="название тега — до 24 символов")
-    color = str(body.get("color") or "#2dd4bf").strip()
-    if not re.match(r"^#[0-9a-fA-F]{6}$", color):
-        color = "#2dd4bf"
+    raw_name = _tag_name(body.get("name"))
+    color = _tag_color(body.get("color"))
+    target = _series_owner_id(user, str(body.get("user_id") or ""))
     now = db._utc_now()
     with db.connect() as conn:
         conn.execute(
@@ -334,18 +387,94 @@ def api_create_series_tag(
             VALUES (?, ?, ?, ?)
             ON CONFLICT(user_id, name) DO UPDATE SET color = excluded.color
             """,
-            (user["id"], raw_name, color, now),
+            (target, raw_name, color, now),
         )
-        my_rows = conn.execute(
-            "SELECT name, color FROM user_series_tags WHERE user_id = ? ORDER BY created_at ASC, name ASC",
-            (user["id"],),
-        ).fetchall()
-        all_rows = conn.execute(
-            "SELECT name, color FROM user_series_tags ORDER BY created_at ASC"
+        return _series_tag_payload(conn, target)
+
+
+@app.delete("/api/series-tags/{name}")
+def api_delete_series_tag(
+    name: str,
+    owner_id: str = "",
+    calendar_session: str | None = Cookie(default=None),
+):
+    user = auth.user_by_token(calendar_session)
+    if not user:
+        raise HTTPException(status_code=401, detail="нужен вход")
+    tag = _tag_name(name)
+    target = _series_owner_id(user, owner_id)
+    with db.connect() as conn:
+        conn.execute(
+            "DELETE FROM user_series_tags WHERE user_id = ? AND name = ?",
+            (target, tag),
+        )
+        _clear_description_field(conn, "series_tag", tag, user_id=target)
+        return _series_tag_payload(conn, target)
+
+
+@app.get("/api/catalog-tags")
+def api_get_catalog_tags(calendar_session: str | None = Cookie(default=None)):
+    user = auth.user_by_token(calendar_session)
+    if not user:
+        raise HTTPException(status_code=401, detail="нужен вход")
+    with db.connect() as conn:
+        return _catalog_payload(conn)
+
+
+@app.post("/api/catalog-tags")
+def api_create_catalog_tag(
+    body: dict = Body(default_factory=dict),
+    calendar_session: str | None = Cookie(default=None),
+):
+    user = auth.user_by_token(calendar_session)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="общие теги создаёт только админ")
+    raw_name = _tag_name(body.get("name"))
+    color = _tag_color(body.get("color"), "#60a5fa")
+    now = db._utc_now()
+    with db.connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO catalog_tags (name, color, created_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET color = excluded.color
+            """,
+            (raw_name, color, now),
+        )
+        return _catalog_payload(conn)
+
+
+@app.delete("/api/catalog-tags/{name}")
+def api_delete_catalog_tag(name: str, calendar_session: str | None = Cookie(default=None)):
+    user = auth.user_by_token(calendar_session)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="общий тег может удалить только админ")
+    tag = _tag_name(name)
+    with db.connect() as conn:
+        conn.execute("DELETE FROM catalog_tags WHERE name = ?", (tag,))
+        _clear_description_field(conn, "catalog_tag", tag)
+        return _catalog_payload(conn)
+
+
+@app.get("/api/participants")
+def api_participants(calendar_session: str | None = Cookie(default=None)):
+    user = auth.user_by_token(calendar_session)
+    if not user:
+        raise HTTPException(status_code=401, detail="нужен вход")
+    with db.connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, display_name FROM users
+            WHERE COALESCE(is_approved, 1) = 1
+            ORDER BY display_name ASC
+            """
         ).fetchall()
     return {
-        "mine": [{"name": r["name"], "color": r["color"]} for r in my_rows],
-        "all": [{"name": r["name"], "color": r["color"]} for r in all_rows],
+        "items": [
+            {"id": r["id"], "display_name": (r["display_name"] or "").strip()}
+            for r in rows
+            if (r["display_name"] or "").strip()
+        ]
     }
 
 
