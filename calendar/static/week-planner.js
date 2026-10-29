@@ -641,12 +641,21 @@ const WeekPlanner = (() => {
       : `<div class="card-author-avatar card-author-avatar-fallback" title="${author}">${escHtml(
           (item.author_name || "А").slice(0, 1).toUpperCase()
         )}</div>`;
+    const hasText = !!String((item.descriptions && item.descriptions.base) || "").trim();
+    const hasCoverArt = !!(item.cover_name || slidesCount > 0);
+    const hasMedia = isCarousel ? slidesCount > 0 : !!item.video_name;
+    const checkBar = (ok, title) =>
+      `<span class="card-check ${ok ? "is-ok" : "is-miss"}" title="${escHtml(title)}"></span>`;
+    const checks = `<div class="card-checks" aria-label="Автопроверка">${checkBar(
+      hasText,
+      hasText ? "Описание есть" : "Нет описания"
+    )}${checkBar(hasCoverArt, hasCoverArt ? "Обложка есть" : "Нет обложки")}${checkBar(
+      hasMedia,
+      hasMedia ? "Файл есть" : "Нет файла"
+    )}</div>`;
 
     el.innerHTML = `
       ${thumb}
-      <div class="card-top-right-avatar">
-        ${avatarHtml}
-      </div>
       <div class="card-bottom-right-actions">
         ${
           showApprove
@@ -667,15 +676,17 @@ const WeekPlanner = (() => {
         }
       </div>
       <div class="week-card-body">
+        ${checks}
         <div class="week-card-top">
           <div class="week-card-badges">${tagBadges}</div>
         </div>
         <div class="week-card-title">${title}</div>
-        <div class="week-card-meta">${author}</div>
+        <div class="week-card-author">${avatarHtml}</div>
       </div>
       <div class="week-card-overlay-bottom">
+        ${checks}
         ${tagBadges}
-        <div class="overlay-author-name">${author}</div>
+        <div class="week-card-author">${avatarHtml}</div>
       </div>`;
 
     const approveBtn = el.querySelector('[data-act="approve"]');

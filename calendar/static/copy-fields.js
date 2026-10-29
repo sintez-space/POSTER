@@ -45,7 +45,7 @@ const CopyFields = {
   ],
 
   labels: {
-    base: "Универсальный текст",
+    base: "Описание для соцсети",
     series_tag: "Свой тег",
     catalog_tag: "Общий тег",
     instagram: "Instagram — подпись",
@@ -60,18 +60,15 @@ const CopyFields = {
   },
 
   hints: {
-    base: "Идёт во все публикации, если для сети не включено своё описание ниже.",
+    base: "",
     series_tag:
       "Цветной бабл на карточке. Крестик предлагает открепить только её или удалить тег отовсюду.",
     catalog_tag:
       "Общий тег администратора тоже вешается баблом. Его можно открепить от карточки.",
-    tags: "По умолчанию подставлены ваши теги из профиля. Можно дописать свои или убрать лишние (# или без, через запятую).",
-    instagram_collaborators:
-      "По умолчанию подставлены ваши ники из профиля. Можно дописать или изменить (логины через запятую, без @).",
-    instagram_reel_tags:
-      "По умолчанию подставлено облако отметок Instagram из вашего профиля. Можно дописать или изменить.",
-    tiktok_mentions:
-      "По умолчанию подставлено облако отметок TikTok из вашего профиля (@ или через запятую). Можно дописать или изменить.",
+    tags: "",
+    instagram_collaborators: "",
+    instagram_reel_tags: "",
+    tiktok_mentions: "",
   },
 
   limitKey(field) {
@@ -279,12 +276,7 @@ const CopyFields = {
     for (const tag of CopyFields.cardTags) {
       assigned.appendChild(CopyFields._bubble(tag, { assigned: true, locked }));
     }
-    if (!CopyFields.cardTags.length) {
-      const empty = document.createElement("span");
-      empty.className = "tag-bubble-hint";
-      empty.textContent = "На карточке пока нет тегов";
-      assigned.appendChild(empty);
-    }
+    if (!CopyFields.cardTags.length) assigned.innerHTML = "";
     if (!available) return;
     const have = new Set(CopyFields.cardTags.map((t) => t.name.toLowerCase()));
     const pool = [];

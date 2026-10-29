@@ -91,7 +91,6 @@
               <!-- Для РИЛС (ВИДЕО): СЛЕВА ОБЛОЖКА, СПРАВА ВИДЕО, загрузка плюсиком прямо на карточках -->
               <div class="modal-equal-media" id="videoEqualPreviews">
                 <div class="modal-media-box modal-reel-stack">
-                  <span class="preview-label">Видео</span>
                   <div class="modal-media-card is-reel" id="videoCardBox">
                     <video id="modalVideoPreview" controls preload="metadata" playsinline hidden></video>
                   </div>
@@ -114,11 +113,10 @@
                   <div class="modal-timeslot-grid" id="modalTimeslotGrid"></div>
                 </div>
                 <div class="modal-media-box modal-cover-stack" id="coverSideBox">
-                  <span class="preview-label">Обложка</span>
                   <div class="modal-media-card is-cover" id="coverCardBox">
                     <img id="modalCoverPreview" alt="Обложка" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
                   </div>
-                  <button type="button" class="outline media-replace-btn" id="pickCoverBtn">Заменить обложку</button>
+                  <button type="button" class="outline media-replace-btn" id="pickCoverBtn">Заменить</button>
                 </div>
               </div>
             </div>
@@ -128,18 +126,14 @@
                 <div class="copy-section-head"><span class="badge">Общее</span></div>
                 <div class="field">
                   <label data-for="base"></label>
-                  <p class="copy-hint" data-hint="base"></p>
                   <textarea data-copy-field="base" rows="3"></textarea>
                   <div class="counter" data-copy-counter="base"></div>
                 </div>
                 <div class="copy-subsection">
-                  <div class="copy-section-head"><span class="badge">Уникальные параметры и теги</span></div>
-                  <p class="copy-hint copy-hint-block">По умолчанию поля ниже заполняются данными из вашего профиля (можно дописать или изменить).</p>
+                  <div class="copy-section-head"><span class="badge">Параметры и теги</span></div>
+                  <p class="copy-hint copy-hint-block">Пишите как удобно: с @, с # или просто текстом. Перед выгрузкой строка сама разберётся под каждую сеть.</p>
                   <div class="field" data-tag-editor>
-                    <label>Теги</label>
-                    <p class="copy-hint">Создайте тег и выберите цвет — он встанет баблом на карточку. Крестик: открепить только её или удалить тег со всех карточек. Готовые теги ниже можно добавить нажатием.</p>
                     <div class="tag-bubble-list" data-card-tag-bubbles></div>
-                    <p class="tag-bubble-hint">Готовые теги</p>
                     <div class="tag-bubble-list" data-available-tag-bubbles></div>
                     <div class="series-tag-creator">
                       <input type="text" data-new-tag-name placeholder="НовыйТег (одно слово)" maxlength="24">
@@ -149,28 +143,24 @@
                   </div>
                   <div class="field">
                     <label data-for="tags"></label>
-                    <p class="copy-hint" data-hint="tags"></p>
                     <textarea data-copy-field="tags" rows="2" placeholder="#тег1, тег2"></textarea>
                   </div>
                   <div class="field">
                     <label data-for="instagram_collaborators"></label>
-                    <p class="copy-hint" data-hint="instagram_collaborators"></p>
                     <input type="text" data-copy-field="instagram_collaborators" spellcheck="false" placeholder="user1, user2">
                   </div>
                   <div class="field">
                     <label data-for="instagram_reel_tags"></label>
-                    <p class="copy-hint" data-hint="instagram_reel_tags"></p>
                     <input type="text" data-copy-field="instagram_reel_tags" spellcheck="false" placeholder="brand, friend_name">
                   </div>
                   <div class="field">
                     <label data-for="tiktok_mentions"></label>
-                    <p class="copy-hint" data-hint="tiktok_mentions"></p>
                     <input type="text" data-copy-field="tiktok_mentions" spellcheck="false" placeholder="@user1, @user2">
                   </div>
                 </div>
               </div>
 
-              <p class="copy-network-intro">Тексты сетей свёрнуты: везде универсальный текст, пока не раскроете сеть и включите «Своё описание».</p>
+              <p class="copy-network-intro">Тексты сетей свёрнуты: везде общее описание, пока не раскроете сеть и включите «Своё описание».</p>
 
               <details class="copy-accordion" data-accordion="instagram">
                 <summary class="copy-accordion-summary">
@@ -377,6 +367,7 @@
     let draftNewState = null;
     /** Текущий выбранный слот в модалке (YYYY-MM-DDTHH:00 или ""). */
     let modalScheduledAt = "";
+    let modalAuthorName = "";
     let modalSlotPart = 1;
     let modalMediaKind = "video";
     let monthCountsCache = {};
@@ -897,11 +888,8 @@
     }
 
     function updateModalMetaLabel() {
-      const kindLabel = modalMediaKind === "carousel" ? "Карусель" : "Рилс";
-      const slotInfo = modalScheduledAt
-        ? `${fmtLocal(modalScheduledAt)} (слот ${modalSlotPart})`
-        : "В пуле (не в расписании)";
-      document.getElementById("modalMeta").textContent = `${me.display_name || "Автор"} · ${kindLabel} · ${slotInfo}`;
+      document.getElementById("modalTitle").textContent = modalAuthorName || (me && me.display_name) || "Автор";
+      document.getElementById("modalMeta").textContent = modalScheduledAt ? fmtLocal(modalScheduledAt) : "В пуле";
     }
 
     function setPreviewForModal(sub, readonly) {
@@ -971,8 +959,7 @@
       carouselItems = [];
 
       document.getElementById("subId").value = "";
-      document.getElementById("modalTitle").textContent =
-        mediaKind === "carousel" ? "Новая карусель" : "Новый рилс";
+      modalAuthorName = (me && me.display_name) || "Автор";
       updateModalMetaLabel();
 
       CopyFields.submissionId = "";
@@ -1005,17 +992,11 @@
 
       const locked = WeekPlanner.isLocked(sub);
       const readonly = !!(me.readonly || me.role === "observer") || ((!sub.is_mine || locked) && me.role !== "admin");
-      const inSlot = !!WeekPlanner.slotForItem(sub);
       CopyFields.submissionId = id;
       document.getElementById("subId").value = id;
       const d = sub.descriptions || {};
-      const kindPrefix = sub.media_kind === "carousel" ? "Карусель · " : "Рилс · ";
-      document.getElementById("modalTitle").textContent =
-        kindPrefix + ((d.base || "").trim().slice(0, 72) || "Материал");
-      document.getElementById("modalMeta").textContent =
-        `${sub.author_name || me.display_name || "—"} · ${
-          inSlot ? `${fmtLocal(sub.scheduled_at)} (слот ${sub.slot_part || 1})` : "В пуле (не в расписании)"
-        }${locked ? " · Слот подтверждён админом" : ""}`;
+      modalAuthorName = sub.author_name || me.display_name || "Автор";
+      updateModalMetaLabel();
 
       try { await CopyFields.ensureOwnerTags(sub.user_id); } catch (_) {}
       CopyFields.writeForm(copyRoot, d, sub.is_mine ? me : null);

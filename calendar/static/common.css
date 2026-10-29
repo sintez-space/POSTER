@@ -412,6 +412,9 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
 .week-cell.cell-primary-with-carousel {
   grid-template-columns: minmax(0, 3fr) minmax(34px, 1fr);
 }
+.week-cell.cell-primary-with-carousel:has(.subslot-carousel.is-mini) {
+  grid-template-columns: minmax(0, 1fr) 60px;
+}
 .week-cell.cell-split-half {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
@@ -426,8 +429,10 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   overflow: hidden;
 }
 .week-subslot.subslot-carousel.is-mini {
+  width: 60px;
+  flex: none;
   border-left: 1px dashed color-mix(in oklch, var(--border) 80%, transparent);
-  padding-left: 3px;
+  padding-left: 0;
 }
 .week-subslot.drop-target,
 .week-cell.drop-target {
@@ -721,7 +726,29 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   min-height: 16px;
   position: relative;
   z-index: 2;
-  padding-right: 42px;
+}
+.card-checks {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 8px;
+}
+.card-check {
+  width: 26px;
+  height: 5px;
+  border-radius: 999px;
+  background: #eab308;
+  flex: none;
+}
+.card-check.is-ok { background: #3ecf8e; }
+.week-card-author {
+  display: flex;
+  align-items: flex-end;
+  margin-top: auto;
+}
+.week-card-author .card-author-avatar {
+  width: 28px;
+  height: 28px;
 }
 
 .week-card-overlay-bottom {
@@ -868,9 +895,8 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   line-height: 1.28;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
-  padding-right: 46px;
 }
 .week-card.half-slot .week-card-title {
   padding-right: 32px;
@@ -1246,10 +1272,16 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
 .modal-header-text { min-width: 0; flex: 1; }
 .modal-header h2 {
   margin: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+#modalMeta {
+  margin-top: 4px;
   font-size: 1.05rem;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.35;
+  color: var(--foreground);
 }
 .modal-desc {
   margin: 6px 0 0;
@@ -2651,7 +2683,7 @@ table.admin th, table.admin td {
   overflow: hidden;
 }
 .side-rail {
-  width: 272px;
+  width: 400px;
   flex: none;
   display: flex;
   flex-direction: column;
