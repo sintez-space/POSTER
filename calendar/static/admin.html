@@ -104,19 +104,12 @@
           <div class="modal-previews">
             <!-- СЛЕВА ОБЛОЖКА, СПРАВА ВИДЕО -->
             <div class="modal-equal-media" id="videoEqualPreviews">
-              <div class="modal-media-box">
-                <span class="preview-label">Обложка</span>
-                <div class="modal-media-card" id="coverCardBox">
-                  <img id="modalCoverPreview" alt="Обложка" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-                  <button type="button" class="media-upload-plus" id="pickCoverBtn" title="Загрузить обложку (9:16)">+</button>
-                </div>
-              </div>
-              <div class="modal-media-box">
+              <div class="modal-media-box modal-reel-stack">
                 <span class="preview-label">Видео</span>
-                <div class="modal-media-card" id="videoCardBox">
+                <div class="modal-media-card is-reel" id="videoCardBox">
                   <video id="modalVideoPreview" controls preload="metadata" playsinline hidden></video>
-                  <button type="button" class="media-upload-plus" id="pickVideoBtn" title="Загрузить видео (до 150 МБ)">+</button>
                 </div>
+                <button type="button" class="outline media-replace-btn" id="pickVideoBtn">Заменить видео</button>
               </div>
             </div>
 
@@ -129,9 +122,18 @@
             </div>
 
             <!-- Мини-календарь и выбор таймслота под превью -->
-            <div class="modal-slot-picker" id="modalSlotPicker">
-              <div class="mini-cal-box" id="modalMiniMonthMount"></div>
-              <div class="modal-timeslot-grid" id="modalTimeslotGrid"></div>
+            <div class="modal-cal-cover-row">
+              <div class="modal-slot-picker" id="modalSlotPicker">
+                <div class="mini-cal-box" id="modalMiniMonthMount"></div>
+                <div class="modal-timeslot-grid" id="modalTimeslotGrid"></div>
+              </div>
+              <div class="modal-media-box modal-cover-stack" id="coverSideBox">
+                <span class="preview-label">Обложка</span>
+                <div class="modal-media-card is-cover" id="coverCardBox">
+                  <img id="modalCoverPreview" alt="Обложка" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                </div>
+                <button type="button" class="outline media-replace-btn" id="pickCoverBtn">Заменить обложку</button>
+              </div>
             </div>
           </div>
 
@@ -632,7 +634,7 @@
             ${avHtml}
             <div class="author-info-meta">
               <h3>${au.display_name || au.login}</h3>
-              <p>Логин: <strong>@${au.login}</strong></p>
+              <p>${String(au.email || au.login || "").replace(/^@+/, "")}</p>
               <p>Карточек всего: <strong>${st.total}</strong></p>
             </div>
             <div class="author-card-menu">
@@ -842,15 +844,6 @@
       const baseDate = modalScheduledAt ? new Date(modalScheduledAt) : new Date();
       const y = baseDate.getFullYear();
       const m = baseDate.getMonth() + 1;
-      const ymKey = `${y}-${m}`;
-      if (!monthCountsCache[ymKey]) {
-        try {
-          const res = await api(`/api/calendar/month?year=${y}&month=${m}`);
-          monthCountsCache[ymKey] = res.counts || {};
-        } catch (_) {
-          monthCountsCache[ymKey] = {};
-        }
-      }
       const selectedDateIso = modalScheduledAt ? modalScheduledAt.slice(0, 10) : WeekPlanner.isoDate(baseDate);
       const selectedHour = modalScheduledAt ? parseInt(modalScheduledAt.slice(11, 13), 10) : null;
 
@@ -858,8 +851,8 @@
         calMount,
         y,
         m,
-        monthCountsCache[ymKey],
-        WeekPlanner.mondayOf(baseDate),
+        {},
+        null,
         (clickedDate, past) => {
           if (readonly) return;
           if (past) {
@@ -919,6 +912,7 @@
       const isCarousel = modalMediaKind === "carousel";
       document.getElementById("videoEqualPreviews").hidden = isCarousel;
       document.getElementById("carouselPreviewWrap").hidden = !isCarousel;
+      document.getElementById("coverSideBox").hidden = isCarousel;
 
       if (isCarousel) {
         const slides = (sub && sub.carousel_files) || [];

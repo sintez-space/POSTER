@@ -1302,7 +1302,7 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
 
 .modal-layout {
   display: grid;
-  grid-template-columns: minmax(250px, 290px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
   gap: 20px;
   align-items: stretch;
   flex: 1;
@@ -1316,10 +1316,35 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   top: 0;
 }
 .modal-equal-media {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  align-items: start;
+}
+.modal-cal-cover-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.modal-cal-cover-row .modal-slot-picker {
+  flex: 1;
+  min-width: 0;
+}
+.modal-cover-stack {
+  width: 132px;
+  flex: none;
+}
+.modal-reel-stack .modal-media-card.is-reel {
+  aspect-ratio: 9 / 16;
+}
+.modal-reel-stack .modal-media-card.is-reel video {
+  object-fit: contain;
+  background: #000;
+}
+.modal-cover-stack .modal-media-card.is-cover {
+  aspect-ratio: 9 / 16;
+}
+.media-replace-btn {
+  width: 100%;
 }
 .modal-media-box {
   display: flex;
@@ -1657,6 +1682,18 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   flex: 1;
   min-width: 180px;
 }
+.cal-filter-bar.is-user-filter {
+  flex-wrap: wrap;
+}
+.cal-filter-bar.is-user-filter .cal-filter-input-wrap {
+  flex: 0 0 500px;
+  width: 500px;
+  max-width: 100%;
+}
+.cal-filter-bar.is-user-filter .cal-filter-chips {
+  flex: 1;
+  min-width: 0;
+}
 .cal-filter-input-wrap input {
   width: 100%;
 }
@@ -1891,6 +1928,27 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   border: 1px dashed color-mix(in oklch, var(--border) 80%, transparent);
   cursor: default;
 }
+.feed-cell.is-hole.has-plus {
+  position: relative;
+  cursor: pointer;
+}
+.feed-hole-plus {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  border: 1.5px dashed var(--primary);
+  background: color-mix(in oklch, var(--background) 72%, transparent);
+  color: var(--primary);
+  font-size: 22px;
+  line-height: 34px;
+  text-align: center;
+  pointer-events: none;
+}
 .feed-cell.is-blank {
   display: flex;
   align-items: center;
@@ -1937,9 +1995,22 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
 }
 .user-view-tabs {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 8px;
   flex: none;
+}
+.user-feed-tools {
+  display: flex;
+  align-items: center;
+  margin-left: 4px;
+}
+.user-feed-tools .feed-tools {
+  position: static;
+  background: transparent;
+  padding: 0;
+  margin: 0;
 }
 .user-view-tabs button.active {
   background: var(--primary);

@@ -11,7 +11,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from PIL import Image, ImageOps
 
-from . import auth, db, demo_seed, export_poster
+from . import auth, db, export_poster
 from .limits import load_limits
 from .paths import AVATARS_DIR, CALENDAR_ROOT, UPLOADS_DIR, ensure_dirs
 from .slots import SLOT_HOURS, date_span, validate_scheduled_at, week_range
@@ -147,11 +147,6 @@ def _short_hash(data: bytes) -> str:
 def startup():
     ensure_dirs()
     db.init_db()
-    auth.ensure_demo_users()
-    demo_seed.ensure_demo_authors()
-    demo_seed.ensure_demo_submissions()
-    demo_seed.align_demo_slots()
-    demo_seed.sync_demo_descriptions()
 
 
 @app.get("/")

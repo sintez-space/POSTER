@@ -46,7 +46,9 @@
   <main class="layout-full">
     <div class="user-view-tabs">
       <button type="button" id="userTabCal" class="active">Календарь</button>
-      <button type="button" id="userTabGallery">Галерея</button>
+      <button type="button" id="userTabWorks">Мои работы</button>
+      <button type="button" id="userTabFeed">Лента</button>
+      <div id="userFeedTools" class="user-feed-tools" hidden></div>
     </div>
     <div class="cal-filter-bar" id="calFilterBar"></div>
     <div id="weekMount"></div>
@@ -85,19 +87,12 @@
             <div class="modal-previews">
               <!-- Для РИЛС (ВИДЕО): СЛЕВА ОБЛОЖКА, СПРАВА ВИДЕО, загрузка плюсиком прямо на карточках -->
               <div class="modal-equal-media" id="videoEqualPreviews">
-                <div class="modal-media-box">
-                  <span class="preview-label">Обложка</span>
-                  <div class="modal-media-card" id="coverCardBox">
-                    <img id="modalCoverPreview" alt="Обложка" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-                    <button type="button" class="media-upload-plus" id="pickCoverBtn" title="Загрузить обложку (9:16)">+</button>
-                  </div>
-                </div>
-                <div class="modal-media-box">
+                <div class="modal-media-box modal-reel-stack">
                   <span class="preview-label">Видео</span>
-                  <div class="modal-media-card" id="videoCardBox">
+                  <div class="modal-media-card is-reel" id="videoCardBox">
                     <video id="modalVideoPreview" controls preload="metadata" playsinline hidden></video>
-                    <button type="button" class="media-upload-plus" id="pickVideoBtn" title="Загрузить видео (до 150 МБ)">+</button>
                   </div>
+                  <button type="button" class="outline media-replace-btn" id="pickVideoBtn">Заменить видео</button>
                 </div>
               </div>
 
@@ -110,9 +105,18 @@
               </div>
 
               <!-- Под превью: мини-календарь и выбор дня + таймслота -->
-              <div class="modal-slot-picker" id="modalSlotPicker">
-                <div class="mini-cal-box" id="modalMiniMonthMount"></div>
-                <div class="modal-timeslot-grid" id="modalTimeslotGrid"></div>
+              <div class="modal-cal-cover-row">
+                <div class="modal-slot-picker" id="modalSlotPicker">
+                  <div class="mini-cal-box" id="modalMiniMonthMount"></div>
+                  <div class="modal-timeslot-grid" id="modalTimeslotGrid"></div>
+                </div>
+                <div class="modal-media-box modal-cover-stack" id="coverSideBox">
+                  <span class="preview-label">Обложка</span>
+                  <div class="modal-media-card is-cover" id="coverCardBox">
+                    <img id="modalCoverPreview" alt="Обложка" hidden src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                  </div>
+                  <button type="button" class="outline media-replace-btn" id="pickCoverBtn">Заменить обложку</button>
+                </div>
               </div>
             </div>
 
@@ -495,6 +499,9 @@
         nextBtn: document.getElementById("next"),
         miniMonthMount: document.getElementById("miniMonthMount"),
         filterBar: document.getElementById("calFilterBar"),
+        userFilter: true,
+        feedToolsMount: document.getElementById("userFeedTools"),
+        ignoreSavedView: true,
         getFilterIndex: filterIndex,
         me,
         statusLabels: STATUS_RU,
@@ -517,6 +524,10 @@
         canDrag: (item) => WeekPlanner.defaultCanDrag(item, me),
         readOnly: lookOnly,
       });
+      try {
+        const savedTab = sessionStorage.getItem("posterUserTab");
+        if (savedTab === "gal" || savedTab === "works" || savedTab === "feed") setUserTab(savedTab);
+      } catch (_) {}
       await refreshAll();
     }
 
@@ -626,21 +637,30 @@
     }
 
     function setUserTab(tab) {
-      if (tab !== "gal") tab = "cal";
+      if (tab === "gal") tab = "works";
+      if (tab !== "works" && tab !== "feed") tab = "cal";
       try {
         sessionStorage.setItem("posterUserTab", tab);
       } catch (_) {}
       document.getElementById("userTabCal").classList.toggle("active", tab === "cal");
-      document.getElementById("userTabGallery").classList.toggle("active", tab === "gal");
-      document.getElementById("calFilterBar").hidden = tab !== "cal";
-      document.getElementById("weekMount").hidden = tab !== "cal";
-      document.getElementById("galleryMount").hidden = tab !== "gal";
-      if (tab === "gal") renderGallery();
+      document.getElementById("userTabWorks").classList.toggle("active", tab === "works");
+      document.getElementById("userTabFeed").classList.toggle("active", tab === "feed");
+      document.getElementById("calFilterBar").hidden = tab === "works";
+      document.getElementById("weekMount").hidden = tab === "works";
+      document.getElementById("galleryMount").hidden = tab !== "works";
+      document.getElementById("userFeedTools").hidden = tab !== "feed";
+      if (planner && planner.setCalendarView) {
+        if (tab === "feed") planner.setCalendarView("feed");
+        else if (tab === "cal") planner.setCalendarView("board");
+      }
+      if (tab === "works") renderGallery();
     }
     document.getElementById("userTabCal").onclick = () => setUserTab("cal");
-    document.getElementById("userTabGallery").onclick = () => setUserTab("gal");
+    document.getElementById("userTabWorks").onclick = () => setUserTab("works");
+    document.getElementById("userTabFeed").onclick = () => setUserTab("feed");
     try {
-      if (sessionStorage.getItem("posterUserTab") === "gal") setUserTab("gal");
+      const savedTab = sessionStorage.getItem("posterUserTab");
+      if (savedTab === "gal" || savedTab === "works" || savedTab === "feed") setUserTab(savedTab);
     } catch (_) {}
     for (const id of ["galTheme", "galTag", "galUpFrom", "galUpTo", "galPubFrom", "galPubTo"]) {
       document.getElementById(id).addEventListener("input", () => renderGallery());
@@ -801,15 +821,6 @@
       const baseDate = modalScheduledAt ? new Date(modalScheduledAt) : new Date();
       const y = baseDate.getFullYear();
       const m = baseDate.getMonth() + 1;
-      const ymKey = `${y}-${m}`;
-      if (!monthCountsCache[ymKey]) {
-        try {
-          const res = await api(`/api/calendar/month?year=${y}&month=${m}`);
-          monthCountsCache[ymKey] = res.counts || {};
-        } catch (_) {
-          monthCountsCache[ymKey] = {};
-        }
-      }
       const selectedDateIso = modalScheduledAt ? modalScheduledAt.slice(0, 10) : WeekPlanner.isoDate(baseDate);
       const selectedHour = modalScheduledAt ? parseInt(modalScheduledAt.slice(11, 13), 10) : null;
 
@@ -817,8 +828,8 @@
         calMount,
         y,
         m,
-        monthCountsCache[ymKey],
-        WeekPlanner.mondayOf(baseDate),
+        {},
+        null,
         (clickedDate, past) => {
           if (readonly) return;
           if (past) {
@@ -893,6 +904,7 @@
       const isCarousel = modalMediaKind === "carousel";
       document.getElementById("videoEqualPreviews").hidden = isCarousel;
       document.getElementById("carouselPreviewWrap").hidden = !isCarousel;
+      document.getElementById("coverSideBox").hidden = isCarousel;
 
       if (isCarousel) {
         const slides = (sub && sub.carousel_files) || [];

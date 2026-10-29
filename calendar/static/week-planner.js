@@ -481,6 +481,7 @@ const WeekPlanner = (() => {
       `Нажмите на любой свободный материал ниже, чтобы сразу поставить его в расписание (${kindRu}), или создайте новый.`;
 
     const createBtn = wrap.querySelector("#slotPickerCreateNewBtn");
+    createBtn.hidden = !onCreateNew;
     createBtn.textContent = mediaKind === "carousel" ? "+ Создать новую карусель в слот" : "+ Создать новый рилс в слот";
     createBtn.onclick = () => {
       wrap.classList.remove("open");
@@ -847,6 +848,9 @@ const WeekPlanner = (() => {
       nextBtn,
       miniMonthMount,
       filterBar,
+      userFilter = false,
+      feedToolsMount = null,
+      ignoreSavedView = false,
       getFilterIndex,
       me,
       onOpen,
@@ -867,7 +871,9 @@ const WeekPlanner = (() => {
     let feedNet = "ig";
     let feedScale = 100;
     try {
-      calendarView = sessionStorage.getItem("posterCalView") === "feed" ? "feed" : "board";
+      if (!ignoreSavedView) {
+        calendarView = sessionStorage.getItem("posterCalView") === "feed" ? "feed" : "board";
+      }
       const savedNet = sessionStorage.getItem("posterFeedNet");
       if (savedNet === "ig" || savedNet === "tt" || savedNet === "yt" || savedNet === "vk") feedNet = savedNet;
       const savedScale = Number(sessionStorage.getItem("posterFeedScale"));
@@ -892,6 +898,17 @@ const WeekPlanner = (() => {
         if (chip.kind === "name") return author === needle;
         return tagNames.includes(needle);
       });
+    }
+
+    let paintViewToggle = () => {};
+    function setCalendarView(next) {
+      calendarView = next === "feed" ? "feed" : "board";
+      try {
+        sessionStorage.setItem("posterCalView", calendarView);
+      } catch (_) {}
+      paintViewToggle();
+      if (calendarView === "feed") load();
+      else render();
     }
 
     function setupFilterBar() {
@@ -923,29 +940,27 @@ const WeekPlanner = (() => {
       const feedBtn = document.createElement("button");
       feedBtn.type = "button";
       feedBtn.textContent = "Лента";
-      function paintViewToggle() {
+      paintViewToggle = () => {
         boardBtn.className = calendarView === "board" ? "active" : "";
         feedBtn.className = calendarView === "feed" ? "active" : "";
-      }
-      function setCalendarView(next) {
-        calendarView = next === "feed" ? "feed" : "board";
-        try {
-          sessionStorage.setItem("posterCalView", calendarView);
-        } catch (_) {}
-        paintViewToggle();
-        if (calendarView === "feed") load();
-        else render();
-      }
+      };
       boardBtn.onclick = () => setCalendarView("board");
       feedBtn.onclick = () => setCalendarView("feed");
       viewToggle.appendChild(boardBtn);
       viewToggle.appendChild(feedBtn);
       paintViewToggle();
 
-      filterBar.appendChild(chipsEl);
-      filterBar.appendChild(wrap);
-      filterBar.appendChild(viewToggle);
-      filterBar.appendChild(resetBtn);
+      if (userFilter) {
+        filterBar.classList.add("is-user-filter");
+        filterBar.appendChild(resetBtn);
+        filterBar.appendChild(wrap);
+        filterBar.appendChild(chipsEl);
+      } else {
+        filterBar.appendChild(chipsEl);
+        filterBar.appendChild(wrap);
+        filterBar.appendChild(viewToggle);
+        filterBar.appendChild(resetBtn);
+      }
 
       let suggestItems = [];
       let activeIdx = 0;
@@ -1257,13 +1272,13 @@ const WeekPlanner = (() => {
       });
     }
 
-    function entriesForHour(a, b, when) {
+    function entriesForHour(a, b, when, key) {
       const filled = [a, b].filter(Boolean);
       const carousels = filled.filter((it) => it.media_kind === "carousel");
       const rest = filled.filter((it) => it.media_kind !== "carousel");
       const asItem = (item) => ({ item, hole: false, caption: when });
       if (!filled.length) {
-        return [{ item: null, hole: true, title: `Свободный слот · ${when}`, caption: when }];
+        return [{ item: null, hole: true, title: `Свободный слот · ${when}`, caption: when, slotKey: key, slotPart: 1 }];
       }
       const out = [];
       if (rest.length) out.push(asItem(rest[0]));
@@ -1311,7 +1326,7 @@ const WeekPlanner = (() => {
             const when = `${dayName} ${shortDate} ${SLOT_LABELS[hi]}`;
             const a = placed.get(`${key}|1`) || null;
             const b = placed.get(`${key}|2`) || null;
-            seq.push(...entriesForHour(a, b, when));
+            seq.push(...entriesForHour(a, b, when, key));
           }
         }
         cursor = addDays(cursor, 1);
@@ -1439,7 +1454,8 @@ const WeekPlanner = (() => {
       const tools = document.createElement("div");
       tools.className = "feed-tools";
       tools.append(nets, scaleLabel);
-      board.appendChild(tools);
+      if (feedToolsMount) feedToolsMount.replaceChildren(tools);
+      else board.appendChild(tools);
 
       if (feedNet !== "ig") {
         const empty = document.createElement("p");
@@ -1489,9 +1505,31 @@ const WeekPlanner = (() => {
             continue;
           }
           if (cell.hole) {
-            const hole = document.createElement("div");
+            const hole = document.createElement("button");
+            hole.type = "button";
             hole.className = "feed-cell is-hole";
             hole.title = cell.title || cell.caption || "";
+            if (!readOnly && cell.slotKey) {
+              hole.classList.add("has-plus");
+              const plus = document.createElement("span");
+              plus.className = "feed-hole-plus";
+              plus.textContent = "+";
+              hole.appendChild(plus);
+              hole.onclick = () => {
+                const mine = feedItems.filter((it) => it.is_mine && !slotForItem(it));
+                openSlotPickerModal({
+                  key: cell.slotKey,
+                  slotPart: cell.slotPart || 1,
+                  mediaKind: "video",
+                  poolItems: mine,
+                  me,
+                  onPicked: async () => {
+                    if (options.onMoved) await options.onMoved();
+                    else await load();
+                  },
+                });
+              };
+            }
             lineCells.appendChild(hole);
             continue;
           }
@@ -1734,6 +1772,7 @@ const WeekPlanner = (() => {
       clearSlot,
       toggleApprove,
       findItem,
+      setCalendarView,
     };
   }
 
