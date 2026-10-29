@@ -1756,6 +1756,13 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   gap: 12px;
   padding: 4px 4px 16px;
 }
+.feed-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+}
 .feed-nets {
   display: flex;
   flex-wrap: wrap;
@@ -1767,12 +1774,42 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   color: var(--primary-foreground);
   border-color: var(--primary);
 }
-.feed-grid {
+.feed-scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.feed-scale input[type="range"] {
+  width: 140px;
+  accent-color: var(--primary);
+}
+.feed-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: calc(4px * var(--feed-scale, 1));
+  width: max-content;
+  max-width: 100%;
+}
+.feed-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.feed-line-cells {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  width: min(100%, 935px);
-  align-items: start;
+  gap: calc(4px * var(--feed-scale, 1));
+  width: calc(935px * var(--feed-scale, 1));
+  flex: none;
+}
+.feed-line-times {
+  flex: none;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+  white-space: nowrap;
 }
 .feed-cell {
   display: block;
@@ -1799,18 +1836,9 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   cursor: default;
 }
 .feed-cell.is-hole {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  text-align: center;
   background: transparent;
   border: 1px dashed color-mix(in oklch, var(--border) 80%, transparent);
-  color: color-mix(in oklch, var(--muted-foreground) 80%, transparent);
-  font-size: 11px;
-  line-height: 1.3;
   cursor: default;
-  white-space: pre-line;
 }
 .feed-cell.is-blank {
   display: flex;

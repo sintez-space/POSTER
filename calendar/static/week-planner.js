@@ -848,17 +848,21 @@ const WeekPlanner = (() => {
       resolveItem,
     } = options;
 
-    let viewStart = mondayOf(new Date());
+    const FEED_ORIGIN = "2026-10-30";
+    let viewStart = parseScheduled(`${FEED_ORIGIN}T00:00`) || mondayOf(new Date());
     let items = [];
     let loadSeq = 0;
     let filterChips = [];
     let calendarView = "board";
     let feedItems = [];
     let feedNet = "ig";
+    let feedScale = 100;
     try {
       calendarView = sessionStorage.getItem("posterCalView") === "feed" ? "feed" : "board";
       const savedNet = sessionStorage.getItem("posterFeedNet");
       if (savedNet === "ig" || savedNet === "tt" || savedNet === "yt" || savedNet === "vk") feedNet = savedNet;
+      const savedScale = Number(sessionStorage.getItem("posterFeedScale"));
+      if (savedScale >= 50 && savedScale <= 100) feedScale = savedScale;
     } catch (_) {}
 
     function findItem(id) {
@@ -1244,6 +1248,24 @@ const WeekPlanner = (() => {
       });
     }
 
+    function entriesForHour(a, b, when) {
+      const filled = [a, b].filter(Boolean);
+      const carousels = filled.filter((it) => it.media_kind === "carousel");
+      const rest = filled.filter((it) => it.media_kind !== "carousel");
+      const asItem = (item) => ({ item, hole: false, caption: when });
+      if (!filled.length) {
+        return [{ item: null, hole: true, title: `Свободный слот · ${when}`, caption: when }];
+      }
+      const out = [];
+      if (rest.length) out.push(asItem(rest[0]));
+      else out.push(asItem(carousels[0]));
+      for (const c of carousels) {
+        if (!out.some((entry) => entry.item === c)) out.push(asItem(c));
+      }
+      for (const extra of rest.slice(1)) out.push(asItem(extra));
+      return out;
+    }
+
     function feedSequence() {
       const placed = new Map();
       const loose = [];
@@ -1259,38 +1281,34 @@ const WeekPlanner = (() => {
         if (placed.has(mapKey)) loose.push(it);
         else placed.set(mapKey, it);
         const day = key.slice(0, 10);
+        if (day < FEED_ORIGIN) continue;
         if (!minDay || day < minDay) minDay = day;
         if (!maxDay || day > maxDay) maxDay = day;
       }
+      minDay = FEED_ORIGIN;
+      if (!maxDay || maxDay < FEED_ORIGIN) maxDay = FEED_ORIGIN;
       const seq = [];
-      if (minDay && maxDay) {
-        let cursor = parseScheduled(`${minDay}T00:00`);
-        let guard = 0;
-        while (cursor && isoDate(cursor) <= maxDay && guard < 400) {
-          guard += 1;
-          if (!isWeekend(cursor)) {
-            const dateIso = isoDate(cursor);
-            const dayName = DAY_NAMES[(cursor.getDay() + 6) % 7] || "";
-            const shortDate = `${pad2(cursor.getDate())}.${pad2(cursor.getMonth() + 1)}`;
-            for (let hi = 0; hi < SLOT_HOURS.length; hi++) {
-              const hour = SLOT_HOURS[hi];
-              const key = cellKey(dateIso, hour);
-              for (const part of [1, 2]) {
-                const item = placed.get(`${key}|${part}`) || null;
-                const when = `${dayName} ${shortDate} ${SLOT_LABELS[hi]}`;
-                seq.push(
-                  item
-                    ? { item, hole: false }
-                    : { item: null, hole: true, title: `Свободный слот · ${when}`, caption: when }
-                );
-              }
-            }
+      let cursor = parseScheduled(`${minDay}T00:00`);
+      let guard = 0;
+      while (cursor && isoDate(cursor) <= maxDay && guard < 400) {
+        guard += 1;
+        if (!isWeekend(cursor)) {
+          const dateIso = isoDate(cursor);
+          const dayName = DAY_NAMES[(cursor.getDay() + 6) % 7] || "";
+          const shortDate = `${pad2(cursor.getDate())}.${pad2(cursor.getMonth() + 1)}`;
+          for (let hi = 0; hi < SLOT_HOURS.length; hi++) {
+            const hour = SLOT_HOURS[hi];
+            const key = cellKey(dateIso, hour);
+            const when = `${dayName} ${shortDate} ${SLOT_LABELS[hi]}`;
+            const a = placed.get(`${key}|1`) || null;
+            const b = placed.get(`${key}|2`) || null;
+            seq.push(...entriesForHour(a, b, when));
           }
-          cursor = addDays(cursor, 1);
         }
+        cursor = addDays(cursor, 1);
       }
       loose.sort(feedSort);
-      for (const it of loose) seq.push({ item: it, hole: false });
+      for (const it of loose) seq.push({ item: it, hole: false, caption: "без слота" });
       return seq;
     }
 
@@ -1331,7 +1349,31 @@ const WeekPlanner = (() => {
         };
         nets.appendChild(btn);
       }
-      board.appendChild(nets);
+      const scaleLabel = document.createElement("label");
+      scaleLabel.className = "feed-scale";
+      const scaleText = document.createElement("span");
+      scaleText.textContent = `${feedScale}%`;
+      const scaleInput = document.createElement("input");
+      scaleInput.type = "range";
+      scaleInput.min = "50";
+      scaleInput.max = "100";
+      scaleInput.step = "5";
+      scaleInput.value = String(feedScale);
+      scaleInput.setAttribute("aria-label", "Масштаб ленты");
+      scaleInput.oninput = () => {
+        feedScale = Number(scaleInput.value) || 100;
+        scaleText.textContent = `${feedScale}%`;
+        const sheet = board.querySelector(".feed-sheet");
+        if (sheet) sheet.style.setProperty("--feed-scale", String(feedScale / 100));
+        try {
+          sessionStorage.setItem("posterFeedScale", String(feedScale));
+        } catch (_) {}
+      };
+      scaleLabel.append("Масштаб", scaleInput, scaleText);
+      const tools = document.createElement("div");
+      tools.className = "feed-tools";
+      tools.append(nets, scaleLabel);
+      board.appendChild(tools);
 
       if (feedNet !== "ig") {
         const empty = document.createElement("p");
@@ -1364,48 +1406,61 @@ const WeekPlanner = (() => {
         cells[row * cols + col] = sequence[i];
       }
 
-      const grid = document.createElement("div");
-      grid.className = "feed-grid";
-      for (const cell of cells) {
-        if (!cell) {
-          const gap = document.createElement("div");
-          gap.className = "feed-cell is-empty";
-          grid.appendChild(gap);
-          continue;
+      const sheet = document.createElement("div");
+      sheet.className = "feed-sheet";
+      sheet.style.setProperty("--feed-scale", String(feedScale / 100));
+      for (let r = 0; r < rows; r++) {
+        const line = document.createElement("div");
+        line.className = "feed-line";
+        const lineCells = document.createElement("div");
+        lineCells.className = "feed-line-cells";
+        const captions = [];
+        for (let c = 0; c < cols; c++) {
+          const cell = cells[r * cols + c];
+          if (!cell) {
+            const gap = document.createElement("div");
+            gap.className = "feed-cell is-empty";
+            lineCells.appendChild(gap);
+            continue;
+          }
+          captions.push(cell.caption || "");
+          if (cell.hole) {
+            const hole = document.createElement("div");
+            hole.className = "feed-cell is-hole";
+            hole.title = cell.title || cell.caption || "";
+            lineCells.appendChild(hole);
+            continue;
+          }
+          const item = cell.item;
+          const tile = document.createElement("button");
+          tile.type = "button";
+          tile.className = "feed-cell";
+          if (!itemMatchesFilter(item)) tile.classList.add("is-filter-dim");
+          const slidesCount = Array.isArray(item.carousel_files) ? item.carousel_files.length : 0;
+          const hasCover = !!(item.cover_name || slidesCount > 0);
+          if (hasCover) {
+            const img = document.createElement("img");
+            img.src = `/api/submissions/${item.id}/cover?thumb=1&t=${encodeURIComponent(item.updated_at || "")}`;
+            img.alt = titleOf(item);
+            img.draggable = false;
+            tile.appendChild(img);
+          } else {
+            tile.classList.add("is-blank");
+            tile.textContent = "нет заставки";
+          }
+          tile.title = `${titleOf(item)}${item.author_name ? " · " + item.author_name : ""}${cell.caption ? " · " + cell.caption : ""}`;
+          tile.onclick = () => {
+            if (onOpen) onOpen(item.id, item);
+          };
+          lineCells.appendChild(tile);
         }
-        if (cell.hole) {
-          const hole = document.createElement("div");
-          hole.className = "feed-cell is-hole";
-          hole.title = cell.title;
-          hole.textContent = cell.caption || "";
-          grid.appendChild(hole);
-          continue;
-        }
-        const item = cell.item;
-        const tile = document.createElement("button");
-        tile.type = "button";
-        tile.className = "feed-cell";
-        if (!itemMatchesFilter(item)) tile.classList.add("is-filter-dim");
-        const slidesCount = Array.isArray(item.carousel_files) ? item.carousel_files.length : 0;
-        const hasCover = !!(item.cover_name || slidesCount > 0);
-        if (hasCover) {
-          const img = document.createElement("img");
-          img.src = `/api/submissions/${item.id}/cover?thumb=1&t=${encodeURIComponent(item.updated_at || "")}`;
-          img.alt = titleOf(item);
-          img.draggable = false;
-          tile.appendChild(img);
-        } else {
-          tile.classList.add("is-blank");
-          tile.textContent = "нет заставки";
-        }
-        const when = String(item.scheduled_at || "").slice(0, 16).replace("T", " ");
-        tile.title = `${titleOf(item)}${item.author_name ? " · " + item.author_name : ""}${when ? " · " + when : ""}`;
-        tile.onclick = () => {
-          if (onOpen) onOpen(item.id, item);
-        };
-        grid.appendChild(tile);
+        const times = document.createElement("div");
+        times.className = "feed-line-times";
+        times.textContent = captions.filter(Boolean).join(" · ");
+        line.append(lineCells, times);
+        sheet.appendChild(line);
       }
-      board.appendChild(grid);
+      board.appendChild(sheet);
       mount.appendChild(board);
     }
 
