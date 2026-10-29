@@ -1016,8 +1016,24 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   opacity: 0.35;
 }
 .mini-cal-day.in-active-week {
-  border-color: color-mix(in oklch, var(--primary) 45%, var(--border));
+  border-color: transparent;
+  border-radius: 0;
   color: var(--foreground);
+  box-shadow: inset 0 2px 0 var(--primary), inset 0 -2px 0 var(--primary);
+}
+.mini-cal-day.in-active-week.is-week-start {
+  border-radius: 6px 0 0 6px;
+  box-shadow: inset 2px 0 0 var(--primary), inset 0 2px 0 var(--primary), inset 0 -2px 0 var(--primary);
+}
+.mini-cal-day.in-active-week.is-week-end {
+  border-radius: 0 6px 6px 0;
+  box-shadow: inset -2px 0 0 var(--primary), inset 0 2px 0 var(--primary), inset 0 -2px 0 var(--primary);
+}
+.mini-cal-day.is-selected-day {
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+  font-weight: 800;
+  border-radius: 6px;
 }
 .mini-cal-day.has-posts {
   background: color-mix(in oklch, var(--primary) calc(var(--post-alpha, 0.5) * 100%), transparent);
@@ -1833,6 +1849,19 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
 .cal-view-toggle button.active {
   background: var(--primary);
   color: var(--primary-foreground);
+}
+#adminViewToggle {
+  flex: 1 1 100%;
+}
+#adminViewToggle .cal-view-toggle {
+  display: flex;
+  width: 100%;
+}
+#adminViewToggle .cal-view-toggle button {
+  flex: 1;
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 700;
 }
 .feed-board {
   flex: 1;
@@ -2726,11 +2755,32 @@ table.admin th, table.admin td {
 .side-rail .mini-cal-box {
   height: 230px;
   min-height: 230px;
+  max-height: 230px;
+  overflow: hidden;
 }
 .side-rail .mini-cal-grid {
   flex: 1;
   min-height: 0;
   grid-template-rows: 14px repeat(6, minmax(0, 1fr));
+}
+.side-rail .mini-cal-week-nav button {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.side-rail .mini-cal-week-nav strong {
+  font-size: 16px;
+  font-weight: 700;
+  flex: 1;
+  min-width: 0;
+  color: var(--foreground);
 }
 .side-rail .mini-cal-day {
   height: auto;
@@ -2832,19 +2882,49 @@ table.admin th, table.admin td {
 .admin-tag-stack .cal-filter-bar {
   margin: 0;
 }
+.settings-modal {
+  width: min(480px, 100%);
+}
+.settings-body {
+  flex: none;
+  overflow: visible;
+  min-height: auto;
+}
 .settings-tag-editor {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
-.settings-tag-create {
+.settings-tag-form {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
 }
-.settings-tag-create input[type="text"] {
-  flex: 1;
-  min-width: 0;
+.settings-tag-name {
+  width: 100%;
+  height: 44px;
+  font-size: 15px;
+}
+.settings-tag-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.settings-tag-color-row span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.settings-tag-color-row input[type="color"] {
+  width: 44px;
+  height: 44px;
+  padding: 4px;
+  flex: none;
+}
+.settings-tag-color-row button {
+  margin-left: auto;
+  height: 44px;
+  padding: 0 18px;
 }
 .side-rail .cal-filter-input-wrap,
 .side-rail .cal-filter-bar.is-user-filter .cal-filter-input-wrap,

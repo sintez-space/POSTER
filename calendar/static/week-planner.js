@@ -64,6 +64,27 @@ const WeekPlanner = (() => {
 
   let dragId = null;
   let selectedCardId = null;
+  let selectedDayIso = "";
+
+  function paintSelectedDay() {
+    document.querySelectorAll(".mini-cal-day.is-selected-day").forEach((node) => {
+      node.classList.remove("is-selected-day");
+    });
+    if (!selectedDayIso) return;
+    document.querySelectorAll(".mini-cal-day").forEach((node) => {
+      if (node.dataset.date === selectedDayIso) node.classList.add("is-selected-day");
+    });
+  }
+
+  function applySelectedCard(item) {
+    if (!item || !item.scheduled_at) {
+      selectedDayIso = "";
+    } else {
+      const d = parseScheduled(item.scheduled_at);
+      selectedDayIso = d ? isoDate(d) : "";
+    }
+    paintSelectedDay();
+  }
 
   function pad2(n) {
     return String(n).padStart(2, "0");
@@ -714,21 +735,41 @@ const WeekPlanner = (() => {
     }
 
     el.addEventListener("click", (e) => {
-      if (e.defaultPrevented) return;
+      if (e.defaultPrevented || e.detail > 1) return;
+      if (selectedCardId === item.id) {
+        const timer = setTimeout(() => {
+          if (selectedCardId !== item.id) return;
+          selectedCardId = null;
+          el.classList.remove("selected");
+          applySelectedCard(null);
+        }, 260);
+        el._deselectTimer = timer;
+        return;
+      }
+      if (el._deselectTimer) {
+        clearTimeout(el._deselectTimer);
+        el._deselectTimer = null;
+      }
       selectedCardId = item.id;
       document.querySelectorAll(".week-card.selected").forEach((node) => {
         node.classList.remove("selected");
       });
       el.classList.add("selected");
+      applySelectedCard(item);
     });
 
     el.addEventListener("dblclick", (e) => {
       if (e.defaultPrevented) return;
+      if (el._deselectTimer) {
+        clearTimeout(el._deselectTimer);
+        el._deselectTimer = null;
+      }
       selectedCardId = item.id;
       document.querySelectorAll(".week-card.selected").forEach((node) => {
         node.classList.remove("selected");
       });
       el.classList.add("selected");
+      applySelectedCard(item);
       if (onOpen) onOpen(item.id, item);
     });
     return el;
@@ -835,11 +876,17 @@ const WeekPlanner = (() => {
       const past = isPastDateIso(dIso);
       const cell = document.createElement("button");
       cell.type = "button";
+      const inWeek = dIso >= activeStart && dIso <= activeEndIso;
+      const wd = (dObj.getDay() + 6) % 7;
+      cell.dataset.date = dIso;
       cell.className =
         "mini-cal-day" +
         (cnt > 0 ? " has-posts" : "") +
         (past ? " is-past-day" : "") +
-        (dIso >= activeStart && dIso <= activeEndIso ? " in-active-week" : "");
+        (inWeek ? " in-active-week" : "") +
+        (inWeek && wd === 0 ? " is-week-start" : "") +
+        (inWeek && wd === 4 ? " is-week-end" : "") +
+        (selectedDayIso && dIso === selectedDayIso ? " is-selected-day" : "");
       cell.textContent = String(day);
       if (cnt > 0) {
         const alpha = Math.min(0.95, 0.25 + (cnt / Math.max(3, maxCnt)) * 0.7);
@@ -850,6 +897,13 @@ const WeekPlanner = (() => {
         if (onSelectDay) onSelectDay(dObj, past);
       };
       grid.appendChild(cell);
+    }
+
+    const filled = startPad + daysInMonth;
+    for (let i = filled; i < 42; i++) {
+      const empty = document.createElement("div");
+      empty.className = "mini-cal-day empty";
+      grid.appendChild(empty);
     }
 
     mount.appendChild(grid);
@@ -960,7 +1014,7 @@ const WeekPlanner = (() => {
       viewToggle.className = "cal-view-toggle";
       const boardBtn = document.createElement("button");
       boardBtn.type = "button";
-      boardBtn.textContent = "Расписание";
+      boardBtn.textContent = "Календарь";
       const feedBtn = document.createElement("button");
       feedBtn.type = "button";
       feedBtn.textContent = "Лента";
@@ -1158,17 +1212,18 @@ const WeekPlanner = (() => {
       try {
         const mData = await api(`/api/calendar/month?year=${y}&month=${m}`);
         if (seq !== loadSeq) return;
+        const weekMonday = mondayOf(anchor);
         renderMiniMonth(
           miniMonthMount,
           y,
           m,
           mData.counts || {},
-          anchor,
+          weekMonday,
           (clickedDate) => {
             viewStart = mondayOf(clickedDate);
             load();
           },
-          days[days.length - 1]
+          addDays(weekMonday, 4)
         );
       } catch (_) {}
     }
@@ -1619,22 +1674,22 @@ const WeekPlanner = (() => {
       const prevDay = document.createElement("button");
       prevDay.type = "button";
       prevDay.className = "week-day-arrow";
-      prevDay.setAttribute("aria-label", "Предыдущая неделя");
-      prevDay.title = "Предыдущая неделя";
+      prevDay.setAttribute("aria-label", "На день назад");
+      prevDay.title = "На день назад";
       prevDay.innerHTML = dayArrowIcon(-1);
       prevDay.onclick = () => {
-        viewStart = addDays(mondayOf(viewStart), -7);
+        viewStart = shiftWorkdays(viewStart, -1);
         load();
       };
 
       const nextDay = document.createElement("button");
       nextDay.type = "button";
       nextDay.className = "week-day-arrow";
-      nextDay.setAttribute("aria-label", "Следующая неделя");
-      nextDay.title = "Следующая неделя";
+      nextDay.setAttribute("aria-label", "На день вперёд");
+      nextDay.title = "На день вперёд";
       nextDay.innerHTML = dayArrowIcon(1);
       nextDay.onclick = () => {
-        viewStart = addDays(mondayOf(viewStart), 7);
+        viewStart = shiftWorkdays(viewStart, 1);
         load();
       };
 

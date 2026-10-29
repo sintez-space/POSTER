@@ -90,7 +90,7 @@
   </div>
 
   <div class="modal-backdrop" id="settingsModal">
-    <div class="modal" style="max-width:520px" role="dialog" aria-labelledby="settingsTitle">
+    <div class="modal settings-modal" role="dialog" aria-labelledby="settingsTitle">
       <div class="modal-header">
         <div class="modal-header-text">
           <h2 id="settingsTitle">Настройки</h2>
@@ -98,7 +98,7 @@
         </div>
         <button type="button" class="modal-close ghost" id="closeSettingsTop" aria-label="Закрыть">×</button>
       </div>
-      <div class="modal-body" id="settingsCatalogMount"></div>
+      <div class="modal-body settings-body" id="settingsCatalogMount"></div>
     </div>
   </div>
 
@@ -1297,19 +1297,27 @@
         };
         list.appendChild(chip);
       }
-      const row = document.createElement("div");
-      row.className = "settings-tag-create";
+      const form = document.createElement("div");
+      form.className = "settings-tag-form";
+      const nameLabel = document.createElement("label");
+      nameLabel.className = "field-label";
+      nameLabel.textContent = "Новый общий тег";
       const nameInp = document.createElement("input");
       nameInp.type = "text";
+      nameInp.className = "settings-tag-name";
       nameInp.maxLength = 24;
-      nameInp.placeholder = "Новый общий тег";
+      nameInp.placeholder = "Одно слово, без пробелов";
+      const colorRow = document.createElement("div");
+      colorRow.className = "settings-tag-color-row";
+      const colorLabel = document.createElement("span");
+      colorLabel.textContent = "Цвет";
       const colorInp = document.createElement("input");
       colorInp.type = "color";
       colorInp.value = "#60a5fa";
       colorInp.title = "Цвет общего тега";
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "outline";
+      btn.className = "primary";
       btn.textContent = "Создать";
       btn.onclick = async () => {
         const raw = nameInp.value.trim();
@@ -1333,8 +1341,9 @@
           alert(err.message || String(err));
         }
       };
-      row.append(nameInp, colorInp, btn);
-      editor.append(list, row);
+      colorRow.append(colorLabel, colorInp, btn);
+      form.append(nameLabel, nameInp, colorRow);
+      editor.append(list, form);
       mount.appendChild(editor);
     }
 
