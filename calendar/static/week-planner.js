@@ -853,8 +853,12 @@ const WeekPlanner = (() => {
     let loadSeq = 0;
     let filterChips = [];
     let calendarView = "board";
+    let feedItems = [];
+    let feedNet = "ig";
     try {
       calendarView = sessionStorage.getItem("posterCalView") === "feed" ? "feed" : "board";
+      const savedNet = sessionStorage.getItem("posterFeedNet");
+      if (savedNet === "ig" || savedNet === "tt" || savedNet === "yt" || savedNet === "vk") feedNet = savedNet;
     } catch (_) {}
 
     function findItem(id) {
@@ -916,7 +920,8 @@ const WeekPlanner = (() => {
           sessionStorage.setItem("posterCalView", calendarView);
         } catch (_) {}
         paintViewToggle();
-        render();
+        if (calendarView === "feed") load();
+        else render();
       }
       boardBtn.onclick = () => setCalendarView("board");
       feedBtn.onclick = () => setCalendarView("feed");
@@ -1112,11 +1117,15 @@ const WeekPlanner = (() => {
       const seq = ++loadSeq;
       const days = currentDays();
       labelEl.textContent = weekLabel(days[0], days[days.length - 1]);
-      const data = await api(
+      const weekReq = api(
         `/api/calendar/week?date_from=${isoDate(days[0])}&date_to=${isoDate(days[days.length - 1])}`
       );
+      const poolReq =
+        calendarView === "feed" ? api("/api/submissions/pool").catch(() => []) : Promise.resolve(null);
+      const [data, pool] = await Promise.all([weekReq, poolReq]);
       if (seq !== loadSeq) return;
       items = data.items || [];
+      if (Array.isArray(pool)) feedItems = pool;
       render();
       await refreshMiniMonth(seq);
     }
@@ -1235,8 +1244,118 @@ const WeekPlanner = (() => {
       });
     }
 
+    function feedSort(a, b) {
+      const sa = String((a && a.scheduled_at) || "");
+      const sb = String((b && b.scheduled_at) || "");
+      if (sa && sb && sa !== sb) return sa < sb ? -1 : 1;
+      if (sa && !sb) return -1;
+      if (!sa && sb) return 1;
+      const ca = String((a && a.created_at) || "");
+      const cb = String((b && b.created_at) || "");
+      if (ca !== cb) return ca < cb ? -1 : 1;
+      return String((a && a.id) || "").localeCompare(String((b && b.id) || ""));
+    }
+
+    function renderFeed() {
+      const board = document.createElement("div");
+      board.className = "feed-board";
+      const nets = document.createElement("div");
+      nets.className = "feed-nets";
+      const netList = [
+        { id: "ig", label: "Инстаграм" },
+        { id: "tt", label: "TikTok" },
+        { id: "yt", label: "YouTube" },
+        { id: "vk", label: "ВК" },
+      ];
+      for (const net of netList) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = net.label;
+        if (feedNet === net.id) btn.className = "active";
+        btn.onclick = () => {
+          feedNet = net.id;
+          try {
+            sessionStorage.setItem("posterFeedNet", feedNet);
+          } catch (_) {}
+          render();
+        };
+        nets.appendChild(btn);
+      }
+      board.appendChild(nets);
+
+      if (feedNet !== "ig") {
+        const empty = document.createElement("p");
+        empty.className = "feed-empty";
+        const label = netList.find((n) => n.id === feedNet);
+        empty.textContent = `Превью ленты ${label ? label.label : ""} пока пустое.`;
+        board.appendChild(empty);
+        mount.appendChild(board);
+        return;
+      }
+
+      const ordered = [...feedItems].sort(feedSort);
+      if (!ordered.length) {
+        const empty = document.createElement("p");
+        empty.className = "feed-empty";
+        empty.textContent = "Нет материалов для ленты.";
+        board.appendChild(empty);
+        mount.appendChild(board);
+        return;
+      }
+
+      const cols = 3;
+      const rows = Math.ceil(ordered.length / cols);
+      const cells = Array.from({ length: rows * cols }, () => null);
+      for (let i = 0; i < ordered.length; i++) {
+        const rowFromBottom = Math.floor(i / cols);
+        const colFromRight = i % cols;
+        const row = rows - 1 - rowFromBottom;
+        const col = cols - 1 - colFromRight;
+        cells[row * cols + col] = ordered[i];
+      }
+
+      const grid = document.createElement("div");
+      grid.className = "feed-grid";
+      for (const item of cells) {
+        if (!item) {
+          const gap = document.createElement("div");
+          gap.className = "feed-cell is-empty";
+          grid.appendChild(gap);
+          continue;
+        }
+        const tile = document.createElement("button");
+        tile.type = "button";
+        tile.className = "feed-cell";
+        if (!itemMatchesFilter(item)) tile.classList.add("is-filter-dim");
+        const slidesCount = Array.isArray(item.carousel_files) ? item.carousel_files.length : 0;
+        const hasCover = !!(item.cover_name || slidesCount > 0);
+        if (hasCover) {
+          const img = document.createElement("img");
+          img.src = `/api/submissions/${item.id}/cover?thumb=1&t=${encodeURIComponent(item.updated_at || "")}`;
+          img.alt = titleOf(item);
+          img.draggable = false;
+          tile.appendChild(img);
+        } else {
+          tile.classList.add("is-blank");
+          tile.textContent = "нет заставки";
+        }
+        const when = String(item.scheduled_at || "").slice(0, 16).replace("T", " ");
+        tile.title = `${titleOf(item)}${item.author_name ? " · " + item.author_name : ""}${when ? " · " + when : ""}`;
+        tile.onclick = () => {
+          if (onOpen) onOpen(item.id, item);
+        };
+        grid.appendChild(tile);
+      }
+      board.appendChild(grid);
+      mount.appendChild(board);
+    }
+
     function render() {
       mount.innerHTML = "";
+      if (calendarView === "feed") {
+        renderFeed();
+        return;
+      }
       const isAdmin = me && me.role === "admin";
       const days = currentDays();
       const stage = document.createElement("div");
@@ -1265,7 +1384,7 @@ const WeekPlanner = (() => {
       };
 
       const grid = document.createElement("div");
-      grid.className = "week-grid" + (isAdmin ? " has-day-footers" : "") + (calendarView === "feed" ? " is-feed" : "");
+      grid.className = "week-grid" + (isAdmin ? " has-day-footers" : "");
       const colParts = ["70px"];
       for (let i = 0; i < days.length; i++) {
         if (weekBreakBefore(days, i)) colParts.push("100px");
@@ -1278,36 +1397,6 @@ const WeekPlanner = (() => {
         gap.className = "week-week-gap";
         gap.setAttribute("aria-hidden", "true");
         grid.appendChild(gap);
-      }
-
-      function makeFeedTile(item) {
-        if (!item) {
-          const empty = document.createElement("div");
-          empty.className = "feed-tile is-empty";
-          return empty;
-        }
-        const tile = document.createElement("button");
-        tile.type = "button";
-        tile.className = "feed-tile";
-        if (!itemMatchesFilter(item)) tile.classList.add("is-filter-dim");
-        const slidesCount = Array.isArray(item.carousel_files) ? item.carousel_files.length : 0;
-        const hasCover = !!(item.cover_name || slidesCount > 0);
-        if (hasCover) {
-          const img = document.createElement("img");
-          img.src = `/api/submissions/${item.id}/cover?thumb=1&t=${encodeURIComponent(item.updated_at || "")}`;
-          img.alt = titleOf(item);
-          img.draggable = false;
-          tile.appendChild(img);
-        } else {
-          tile.classList.add("is-blank");
-          tile.textContent = item.media_kind === "carousel" ? "▤" : "9:16";
-        }
-        tile.title = `${titleOf(item)} · ${item.author_name || ""}`;
-        tile.onclick = (e) => {
-          e.stopPropagation();
-          if (onOpen) onOpen(item.id, item);
-        };
-        return tile;
       }
 
       grid.appendChild(document.createElement("div")).className = "week-corner";
@@ -1351,9 +1440,7 @@ const WeekPlanner = (() => {
 
           const sub1 = document.createElement("div");
           sub1.className = "week-subslot subslot-primary";
-          if (calendarView === "feed") {
-            sub1.appendChild(makeFeedTile(item1, pastDay));
-          } else if (item1) {
+          if (item1) {
             sub1.appendChild(
               buildCard(item1, {
                 me,
@@ -1387,9 +1474,7 @@ const WeekPlanner = (() => {
 
           const sub2 = document.createElement("div");
           sub2.className = "week-subslot subslot-carousel" + (item2 || leftIsCarousel ? " is-filled" : " is-mini");
-          if (calendarView === "feed") {
-            sub2.appendChild(makeFeedTile(item2, pastDay));
-          } else if (item2) {
+          if (item2) {
             sub2.appendChild(
               buildCard(item2, {
                 me,
