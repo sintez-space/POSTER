@@ -2046,6 +2046,9 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   gap: 6px;
   min-height: 28px;
 }
+.tag-bubble-list + .tag-bubble-list {
+  margin-top: 16px;
+}
 .tag-bubble-hint {
   margin: 8px 0 4px;
   font-size: 11px;
@@ -2066,6 +2069,13 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
 }
 .tag-bubble.is-available {
   background: transparent;
+  opacity: 0.3;
+}
+.tag-bubble.is-available:hover {
+  opacity: 1;
+}
+.tag-create-btn {
+  margin-top: 12px;
 }
 .tag-bubble-x,
 .tag-bubble-edit {

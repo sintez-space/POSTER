@@ -129,15 +129,10 @@
                 </div>
                 <div class="copy-subsection">
                   <div class="copy-section-head"><span class="badge">Параметры и теги</span></div>
-                  <p class="copy-hint copy-hint-block">Пишите как удобно: с @, с # или просто текстом. Перед выгрузкой строка сама разберётся под каждую сеть.</p>
                   <div class="field" data-tag-editor>
                     <div class="tag-bubble-list" data-card-tag-bubbles></div>
                     <div class="tag-bubble-list" data-available-tag-bubbles></div>
-                    <div class="series-tag-creator">
-                      <input type="text" data-new-tag-name placeholder="НовыйТег (одно слово)" maxlength="24">
-                      <input type="color" data-new-tag-color value="#2dd4bf" title="Цвет тега">
-                      <button type="button" class="outline" data-add-series-tag>+ Создать тег</button>
-                    </div>
+                    <button type="button" class="outline tag-create-btn" data-open-tag-create>+ Тег</button>
                   </div>
                   <div class="field">
                     <label data-for="tags"></label>
@@ -674,6 +669,7 @@
         if (
           el.hasAttribute("data-copy-field") ||
           el.hasAttribute("data-copy-override") ||
+          el.hasAttribute("data-open-tag-create") ||
           el.hasAttribute("data-add-series-tag") ||
           el.hasAttribute("data-delete-series-tag") ||
           el.hasAttribute("data-clear-catalog-tag") ||

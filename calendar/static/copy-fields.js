@@ -215,6 +215,9 @@ const CopyFields = {
   setFormLocked(locked) {
     CopyFields.formLocked = !!locked;
     if (CopyFields.tagRoot) CopyFields.renderTagBubbles(CopyFields.tagRoot);
+    document.querySelectorAll("[data-open-tag-create]").forEach((btn) => {
+      btn.hidden = !!locked;
+    });
   },
 
   _normalizeTag(entry) {
@@ -325,14 +328,33 @@ const CopyFields = {
       const x = document.createElement("span");
       x.className = "tag-bubble-x";
       x.textContent = "×";
+      x.title = "Снять с карточки";
+      x.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        CopyFields.unpinTag(tag);
+      });
       btn.appendChild(x);
-      btn.title = "Открепить или удалить тег";
-      btn.onclick = () => CopyFields.openTagRemoveModal(tag);
+      btn.title = tag.name;
     } else {
       btn.title = "Добавить тег на карточку";
       btn.onclick = () => CopyFields.attachTag(tag);
     }
     return btn;
+  },
+
+  unpinTag(tag) {
+    if (CopyFields.formLocked) return;
+    CopyFields.cardTags = CopyFields.cardTags.filter((t) => t.name.toLowerCase() !== tag.name.toLowerCase());
+    CopyFields.renderTagBubbles(CopyFields.tagRoot);
+    CopyFields.persistCardTags();
+  },
+
+  canCreateTag() {
+    const me = CopyFields.viewer;
+    if (CopyFields.formLocked) return false;
+    if (!me || me.readonly || me.role === "observer") return false;
+    return true;
   },
 
   attachTag(tag) {
@@ -358,7 +380,10 @@ const CopyFields = {
   },
 
   openTagEditModal(tag) {
-    if (!CopyFields.canEditTag(tag)) return;
+    const creating = !tag;
+    if (creating) {
+      if (!CopyFields.canCreateTag()) return;
+    } else if (!CopyFields.canEditTag(tag)) return;
     let wrap = document.getElementById("tagEditBackdrop");
     if (!wrap) {
       wrap = document.createElement("div");
@@ -370,7 +395,7 @@ const CopyFields = {
           <div class="modal-header">
             <div class="modal-header-text">
               <h2 id="tagEditTitle">Изменить тег</h2>
-              <p class="modal-desc">Новое имя попадёт на все карточки, где тег уже стоит.</p>
+              <p class="modal-desc" id="tagEditDesc"></p>
             </div>
           </div>
           <div class="modal-body settings-body">
@@ -385,6 +410,7 @@ const CopyFields = {
             </div>
           </div>
           <div class="modal-footer">
+            <button type="button" class="danger-text" id="tagEditDelete">Удалить тег</button>
             <span class="footer-spacer"></span>
             <button type="button" class="outline" id="tagEditCancel">Отмена</button>
           </div>
@@ -395,13 +421,27 @@ const CopyFields = {
       });
       wrap.querySelector("#tagEditCancel").onclick = () => wrap.classList.remove("open");
     }
-    const color = tag.color || CopyFields._tagColor(tag.name, tag.source);
-    wrap.querySelector("#tagEditTitle").textContent = `Тег «${tag.name}»`;
     const nameInp = wrap.querySelector("#tagEditName");
     const colorInp = wrap.querySelector("#tagEditColor");
-    nameInp.value = tag.name;
-    colorInp.value = /^#[0-9a-fA-F]{6}$/.test(color) ? color : tag.source === "catalog" ? "#60a5fa" : "#2dd4bf";
-    wrap.querySelector("#tagEditSave").onclick = async () => {
+    const saveBtn = wrap.querySelector("#tagEditSave");
+    const deleteBtn = wrap.querySelector("#tagEditDelete");
+    if (creating) {
+      wrap.querySelector("#tagEditTitle").textContent = "Новый тег";
+      wrap.querySelector("#tagEditDesc").textContent = "Одно слово без пробелов. Тег сразу встанет на эту карточку.";
+      nameInp.value = "";
+      colorInp.value = "#2dd4bf";
+      saveBtn.textContent = "Создать";
+      deleteBtn.hidden = true;
+    } else {
+      const color = tag.color || CopyFields._tagColor(tag.name, tag.source);
+      wrap.querySelector("#tagEditTitle").textContent = `Тег «${tag.name}»`;
+      wrap.querySelector("#tagEditDesc").textContent = "Новое имя попадёт на все карточки, где тег уже стоит. Удаление снимет его отовсюду.";
+      nameInp.value = tag.name;
+      colorInp.value = /^#[0-9a-fA-F]{6}$/.test(color) ? color : tag.source === "catalog" ? "#60a5fa" : "#2dd4bf";
+      saveBtn.textContent = "Сохранить";
+      deleteBtn.hidden = false;
+    }
+    saveBtn.onclick = async () => {
       const raw = nameInp.value.trim();
       if (!raw) {
         alert("Введите название тега (одно слово без пробелов).");
@@ -412,7 +452,18 @@ const CopyFields = {
         return;
       }
       try {
-        await CopyFields.saveTagEdit(tag, raw, colorInp.value);
+        if (creating) await CopyFields.createOwnTag(raw, colorInp.value);
+        else await CopyFields.saveTagEdit(tag, raw, colorInp.value);
+        wrap.classList.remove("open");
+      } catch (err) {
+        alert(err.message || String(err));
+      }
+    };
+    deleteBtn.onclick = async () => {
+      if (creating) return;
+      if (!confirm(`Удалить тег «${tag.name}»? Он пропадёт из списка и со всех карточек.`)) return;
+      try {
+        await CopyFields.deleteTagEverywhere(tag);
         wrap.classList.remove("open");
       } catch (err) {
         alert(err.message || String(err));
@@ -420,6 +471,46 @@ const CopyFields = {
     };
     wrap.classList.add("open");
     nameInp.focus();
+  },
+
+  async createOwnTag(name, color) {
+    const body = { name, color };
+    if (
+      CopyFields.viewer &&
+      CopyFields.viewer.role === "admin" &&
+      CopyFields.tagOwnerId &&
+      CopyFields.tagOwnerId !== CopyFields.viewer.id
+    ) {
+      body.user_id = CopyFields.tagOwnerId;
+    }
+    const res = await api("/api/series-tags", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    CopyFields.setSeriesTags(res);
+    if (!CopyFields.cardTags.some((t) => t.name.toLowerCase() === name.toLowerCase())) {
+      CopyFields.cardTags = CopyFields.cardTags.concat([{ name, source: "own" }]);
+    }
+    CopyFields.renderTagBubbles(CopyFields.tagRoot);
+    CopyFields.persistCardTags();
+    if (typeof CopyFields.onTagsChanged === "function") CopyFields.onTagsChanged(res);
+    return res;
+  },
+
+  async deleteTagEverywhere(tag) {
+    let res;
+    if (tag.source === "catalog") {
+      res = await api(`/api/catalog-tags/${encodeURIComponent(tag.name)}`, { method: "DELETE" });
+      CopyFields.setCatalogTags(res);
+    } else {
+      const q = CopyFields.tagOwnerId ? `?owner_id=${encodeURIComponent(CopyFields.tagOwnerId)}` : "";
+      res = await api(`/api/series-tags/${encodeURIComponent(tag.name)}${q}`, { method: "DELETE" });
+      CopyFields.setSeriesTags(res);
+    }
+    CopyFields.cardTags = CopyFields.cardTags.filter((t) => t.name.toLowerCase() !== tag.name.toLowerCase());
+    CopyFields.renderTagBubbles(CopyFields.tagRoot);
+    if (typeof CopyFields.onTagsChanged === "function") CopyFields.onTagsChanged(res);
+    return res;
   },
 
   async saveTagEdit(tag, name, color) {
@@ -453,67 +544,6 @@ const CopyFields = {
     CopyFields.renderTagBubbles(CopyFields.tagRoot);
     if (typeof CopyFields.onTagsChanged === "function") CopyFields.onTagsChanged(res);
     return res;
-  },
-
-  openTagRemoveModal(tag) {
-    let wrap = document.getElementById("tagRemoveBackdrop");
-    if (!wrap) {
-      wrap = document.createElement("div");
-      wrap.id = "tagRemoveBackdrop";
-      wrap.className = "modal-backdrop";
-      wrap.style.zIndex = "80";
-      wrap.innerHTML = `
-        <div class="modal" style="max-width:420px" role="dialog" aria-modal="true">
-          <div class="modal-header">
-            <div class="modal-header-text">
-              <h2 id="tagRemoveTitle">Тег</h2>
-              <p class="modal-desc" id="tagRemoveDesc"></p>
-            </div>
-          </div>
-          <div class="modal-footer" style="margin-top:14px;flex-wrap:wrap">
-            <button type="button" class="outline" id="tagUnpinBtn">Открепить от карточки</button>
-            <button type="button" class="primary" id="tagDeleteEverywhereBtn" style="background:var(--destructive);color:#fff">Удалить со всех карточек</button>
-            <span class="footer-spacer"></span>
-            <button type="button" class="outline" id="tagRemoveCancel">Отмена</button>
-          </div>
-        </div>`;
-      document.body.appendChild(wrap);
-      wrap.addEventListener("click", (e) => {
-        if (e.target === wrap) wrap.classList.remove("open");
-      });
-      wrap.querySelector("#tagRemoveCancel").onclick = () => wrap.classList.remove("open");
-    }
-    wrap.querySelector("#tagRemoveTitle").textContent = `Тег «${tag.name}»`;
-    wrap.querySelector("#tagRemoveDesc").textContent =
-      "Открепить — тег снимется только с этой карточки. Удалить — тег пропадёт из списка и со всех карточек.";
-    const canDelete = tag.source !== "catalog" || (CopyFields.viewer && CopyFields.viewer.role === "admin");
-    const delBtn = wrap.querySelector("#tagDeleteEverywhereBtn");
-    delBtn.hidden = !canDelete;
-    wrap.querySelector("#tagUnpinBtn").onclick = () => {
-      CopyFields.cardTags = CopyFields.cardTags.filter((t) => t.name.toLowerCase() !== tag.name.toLowerCase());
-      CopyFields.renderTagBubbles(CopyFields.tagRoot);
-      wrap.classList.remove("open");
-      CopyFields.persistCardTags();
-    };
-    delBtn.onclick = async () => {
-      try {
-        if (tag.source === "catalog") {
-          const res = await api(`/api/catalog-tags/${encodeURIComponent(tag.name)}`, { method: "DELETE" });
-          CopyFields.setCatalogTags(res);
-        } else {
-          const q = CopyFields.tagOwnerId ? `?owner_id=${encodeURIComponent(CopyFields.tagOwnerId)}` : "";
-          const res = await api(`/api/series-tags/${encodeURIComponent(tag.name)}${q}`, { method: "DELETE" });
-          CopyFields.setSeriesTags(res);
-        }
-        CopyFields.cardTags = CopyFields.cardTags.filter((t) => t.name.toLowerCase() !== tag.name.toLowerCase());
-        CopyFields.renderTagBubbles(CopyFields.tagRoot);
-        wrap.classList.remove("open");
-        if (typeof CopyFields.onTagsChanged === "function") CopyFields.onTagsChanged();
-      } catch (err) {
-        alert(err.message || String(err));
-      }
-    };
-    wrap.classList.add("open");
   },
 
   readForm(root) {
@@ -621,47 +651,9 @@ const CopyFields = {
       });
     });
 
-    const addTagBtn = root.querySelector("[data-add-series-tag]");
+    const addTagBtn = root.querySelector("[data-open-tag-create]");
     if (addTagBtn) {
-      addTagBtn.addEventListener("click", async () => {
-        const nameInp = root.querySelector("[data-new-tag-name]");
-        const colorInp = root.querySelector("[data-new-tag-color]");
-        const raw = (nameInp ? nameInp.value : "").trim();
-        if (!raw) {
-          alert("Введите название тега (одно слово без пробелов).");
-          return;
-        }
-        if (/\s/.test(raw)) {
-          alert("Название тега должно состоять из одного слова без пробелов.");
-          return;
-        }
-        const color = colorInp ? colorInp.value : "#2dd4bf";
-        try {
-          const body = { name: raw, color };
-          if (
-            CopyFields.viewer &&
-            CopyFields.viewer.role === "admin" &&
-            CopyFields.tagOwnerId &&
-            CopyFields.tagOwnerId !== CopyFields.viewer.id
-          ) {
-            body.user_id = CopyFields.tagOwnerId;
-          }
-          const res = await api("/api/series-tags", {
-            method: "POST",
-            body: JSON.stringify(body),
-          });
-          CopyFields.setSeriesTags(res);
-          if (!CopyFields.cardTags.some((t) => t.name.toLowerCase() === raw.toLowerCase())) {
-            CopyFields.cardTags = CopyFields.cardTags.concat([{ name: raw, source: "own" }]);
-          }
-          CopyFields.renderTagBubbles(root);
-          if (nameInp) nameInp.value = "";
-          CopyFields.persistCardTags();
-          if (onTagsChanged) onTagsChanged(res);
-        } catch (err) {
-          alert(err.message || String(err));
-        }
-      });
+      addTagBtn.addEventListener("click", () => CopyFields.openTagEditModal(null));
     }
 
     const deleteSeriesBtn = root.querySelector("[data-delete-series-tag]");
