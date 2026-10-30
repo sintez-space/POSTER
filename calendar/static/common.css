@@ -921,7 +921,7 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   line-height: 1.28;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 6;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
 }
 .week-card.half-slot .week-card-title {
@@ -1875,6 +1875,7 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overflow-anchor: none;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2381,6 +2382,7 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   border-top: 1px solid var(--border);
 }
 .copy-fields-scroll {
+  overflow-anchor: none;
   max-height: none;
   height: 100%;
   min-height: 0;
@@ -2905,6 +2907,27 @@ table.admin th, table.admin td {
   height: 34px;
   flex: none;
 }
+.filter-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-height: 220px;
+  overflow: auto;
+  overflow-anchor: none;
+}
+.filter-presets .tag-block + .tag-block {
+  margin-top: 0;
+}
+.filter-presets .tag-bubble {
+  opacity: 0.3;
+  cursor: pointer;
+  background: transparent;
+}
+.filter-presets .tag-bubble:hover,
+.filter-presets .tag-bubble.is-on {
+  opacity: 1;
+}
 .admin-tag-stack {
   display: flex;
   flex-direction: column;
@@ -3001,6 +3024,7 @@ table.admin th, table.admin td {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overflow-anchor: none;
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) - 2px);
   background: color-mix(in oklch, var(--background) 60%, var(--card));

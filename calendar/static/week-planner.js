@@ -670,6 +670,7 @@ const WeekPlanner = (() => {
     const hasText = !!String((item.descriptions && item.descriptions.base) || "").trim();
     const hasCoverArt = !!(item.cover_name || slidesCount > 0);
     const hasMedia = isCarousel ? slidesCount > 0 : !!item.video_name;
+    const hasTags = cardTags.length > 0;
     const checkBar = (ok, title) =>
       `<span class="card-check ${ok ? "is-ok" : "is-miss"}" title="${escHtml(title)}"></span>`;
     const checks = `<div class="card-checks" aria-label="Автопроверка">${checkBar(
@@ -678,7 +679,7 @@ const WeekPlanner = (() => {
     )}${checkBar(hasCoverArt, hasCoverArt ? "Обложка есть" : "Нет обложки")}${checkBar(
       hasMedia,
       hasMedia ? "Файл есть" : "Нет файла"
-    )}</div>`;
+    )}${checkBar(hasTags, hasTags ? "Теги есть" : "Нет тегов")}</div>`;
 
     el.innerHTML = `
       ${thumb}
@@ -785,6 +786,8 @@ const WeekPlanner = (() => {
    */
   function renderAuthorPool(mount, allItems, opts) {
     if (!mount) return;
+    const poolTop = mount.scrollTop;
+    const poolLeft = mount.scrollLeft;
     mount.innerHTML = "";
     const onlyMine = opts.onlyMineInPool !== false && opts.me && !isStaff(opts.me);
     const unscheduled = (allItems || []).filter((it) => {
@@ -813,6 +816,8 @@ const WeekPlanner = (() => {
       empty.className = "side-pool-empty";
       empty.textContent = "Нет карточек вне календаря";
       mount.appendChild(empty);
+      mount.scrollTop = poolTop;
+      mount.scrollLeft = poolLeft;
       return;
     }
 
@@ -829,6 +834,8 @@ const WeekPlanner = (() => {
       grid.appendChild(wrap);
     }
     mount.appendChild(grid);
+    mount.scrollTop = poolTop;
+    mount.scrollLeft = poolLeft;
   }
 
   /**
@@ -942,6 +949,66 @@ const WeekPlanner = (() => {
     let items = [];
     let loadSeq = 0;
     let filterChips = [];
+    let refreshFilterPresets = () => {};
+
+    function presetTagGroups() {
+      const CF = typeof CopyFields !== "undefined" ? CopyFields : null;
+      const take = (list) => {
+        const out = [];
+        const seen = new Set();
+        for (const t of list || []) {
+          const name = String(t && t.name ? t.name : "").trim();
+          const key = name.toLowerCase();
+          if (!name || seen.has(key)) continue;
+          seen.add(key);
+          out.push({ name, color: (t && t.color) || "" });
+        }
+        return out;
+      };
+      return {
+        catalog: take(CF && CF.catalogTagsList),
+        own: take(CF && CF.seriesTagsList),
+      };
+    }
+
+    function captureScroll() {
+      const saved = [];
+      const feed = mount.querySelector(".feed-board");
+      saved.push({
+        kind: "feed",
+        had: !!feed,
+        top: feed ? feed.scrollTop : 0,
+        left: feed ? feed.scrollLeft : 0,
+      });
+      const nodes = [];
+      let el = mount.parentElement;
+      while (el) {
+        nodes.push(el);
+        el = el.parentElement;
+      }
+      const doc = document.scrollingElement;
+      if (doc && !nodes.includes(doc)) nodes.push(doc);
+      for (const node of nodes) saved.push({ el: node, top: node.scrollTop, left: node.scrollLeft });
+      return saved;
+    }
+
+    function restoreScroll(saved) {
+      if (!saved) return;
+      for (const s of saved) {
+        if (s.kind === "feed") {
+          const feed = mount.querySelector(".feed-board");
+          if (feed && s.had) {
+            feed.scrollTop = s.top;
+            feed.scrollLeft = s.left;
+          }
+          continue;
+        }
+        if (s.el && s.el.isConnected) {
+          s.el.scrollTop = s.top;
+          s.el.scrollLeft = s.left;
+        }
+      }
+    }
     let calendarView = "board";
     let feedItems = [];
     let feedNet = "ig";
@@ -1059,6 +1126,7 @@ const WeekPlanner = (() => {
           el.className = "cal-filter-chip" + (chip.kind === "name" ? " is-name" : " is-tag");
           el.title = chip.kind === "name" ? "Убрать имя" : "Убрать тег";
           el.innerHTML = `<span>${escHtml(chip.kind === "name" ? chip.name : "#" + chip.name)}</span><span class="cal-filter-x" aria-hidden="true">×</span>`;
+          el.addEventListener("mousedown", (e) => e.preventDefault());
           el.onclick = () => {
             filterChips = filterChips.filter((c) => !(c.kind === chip.kind && c.name === chip.name));
             paintChips();
@@ -1192,7 +1260,64 @@ const WeekPlanner = (() => {
       document.addEventListener("click", (e) => {
         if (!filterBar.contains(e.target)) hideSuggest();
       });
+      resetBtn.addEventListener("mousedown", (e) => e.preventDefault());
+      mineBtn.addEventListener("mousedown", (e) => e.preventDefault());
+
+      if (userFilter && showMine) {
+        const presets = document.createElement("div");
+        presets.className = "filter-presets";
+        filterBar.appendChild(presets);
+        refreshFilterPresets = () => {
+          const top = presets.scrollTop;
+          presets.innerHTML = "";
+          const groups = presetTagGroups();
+          const paintGroup = (label, list) => {
+            if (!list.length) return;
+            const block = document.createElement("div");
+            block.className = "tag-block";
+            const title = document.createElement("p");
+            title.className = "tag-block-label";
+            title.textContent = label;
+            const row = document.createElement("div");
+            row.className = "tag-bubble-list";
+            for (const tag of list) {
+              const on = filterChips.some((c) => c.kind === "tag" && c.name.toLowerCase() === tag.name.toLowerCase());
+              const btn = document.createElement("button");
+              btn.type = "button";
+              btn.className = "tag-bubble" + (on ? " is-on" : "");
+              btn.style.setProperty("--bubble", tag.color || "#60a5fa");
+              btn.textContent = tag.name;
+              btn.title = on ? "Убрать из фильтра" : "Добавить в фильтр";
+              btn.addEventListener("mousedown", (e) => e.preventDefault());
+              btn.onclick = () => toggleFilterTag(tag.name);
+              row.appendChild(btn);
+            }
+            block.append(title, row);
+            presets.appendChild(block);
+          };
+          paintGroup("Общие", groups.catalog);
+          paintGroup("Мои", groups.own);
+          presets.hidden = !presets.childElementCount;
+          presets.scrollTop = top;
+        };
+      }
+
+      function toggleFilterTag(name) {
+        const clean = String(name || "").trim();
+        const key = clean.toLowerCase();
+        if (!key) return;
+        const on = filterChips.some((c) => c.kind === "tag" && c.name.toLowerCase() === key);
+        filterChips = on
+          ? filterChips.filter((c) => !(c.kind === "tag" && c.name.toLowerCase() === key))
+          : filterChips.concat([{ kind: "tag", name: clean }]);
+        input.value = "";
+        hideSuggest();
+        paintChips();
+        render();
+      }
+
       paintChips();
+      refreshFilterPresets();
     }
 
     setupFilterBar();
@@ -1665,9 +1790,13 @@ const WeekPlanner = (() => {
     }
 
     function render() {
+      const savedScroll = captureScroll();
+      refreshFilterPresets();
       mount.innerHTML = "";
       if (calendarView === "feed") {
         renderFeed();
+        restoreScroll(savedScroll);
+        requestAnimationFrame(() => restoreScroll(savedScroll));
         return;
       }
       if (feedToolsMount) feedToolsMount.hidden = true;
@@ -1858,6 +1987,8 @@ const WeekPlanner = (() => {
       stage.appendChild(grid);
       stage.appendChild(nextDay);
       mount.appendChild(stage);
+      restoreScroll(savedScroll);
+      requestAnimationFrame(() => restoreScroll(savedScroll));
     }
 
     return {

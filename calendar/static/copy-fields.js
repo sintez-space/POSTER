@@ -273,6 +273,8 @@ const CopyFields = {
     const catalogMount = root.querySelector("[data-catalog-tag-bubbles]");
     const ownMount = root.querySelector("[data-own-tag-bubbles]");
     if (!catalogMount || !ownMount) return;
+    const scroller = root.closest(".copy-fields-scroll") || root.closest(".modal-body");
+    const scrollTop = scroller ? scroller.scrollTop : 0;
     const locked = CopyFields.formLocked;
     const paint = (mount, source, list) => {
       mount.innerHTML = "";
@@ -301,6 +303,7 @@ const CopyFields = {
     };
     paint(catalogMount, "catalog", CopyFields.catalogTagsList);
     paint(ownMount, "own", CopyFields.seriesTagsList);
+    if (scroller) scroller.scrollTop = scrollTop;
   },
 
   canEditTag(tag) {
@@ -315,6 +318,7 @@ const CopyFields = {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "tag-bubble" + (opts.assigned ? " is-on" : " is-available");
+    btn.addEventListener("mousedown", (e) => e.preventDefault());
     btn.style.setProperty("--bubble", tag.color || CopyFields._tagColor(tag.name, tag.source));
     btn.disabled = !!opts.locked;
     const label = document.createElement("span");
