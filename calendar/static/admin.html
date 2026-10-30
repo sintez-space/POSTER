@@ -162,9 +162,15 @@
               <div class="copy-subsection">
                 <div class="copy-section-head"><span class="badge">Параметры и теги</span></div>
                 <div class="field" data-tag-editor>
-                  <div class="tag-bubble-list" data-card-tag-bubbles></div>
-                  <div class="tag-bubble-list" data-available-tag-bubbles></div>
-                  <button type="button" class="outline tag-create-btn" data-open-tag-create>+ Тег</button>
+                  <div class="tag-block">
+                    <div class="tag-block-label">Общие</div>
+                    <div class="tag-bubble-list" data-catalog-tag-bubbles></div>
+                  </div>
+                  <div class="tag-block">
+                    <div class="tag-block-label">Автор</div>
+                    <div class="tag-bubble-list" data-own-tag-bubbles></div>
+                    <button type="button" class="outline tag-create-btn" data-open-tag-create>+ Тег</button>
+                  </div>
                 </div>
                 <div class="field">
                   <label data-for="tags"></label>

@@ -235,19 +235,22 @@ const WeekPlanner = (() => {
 
   function tagsOfItem(item) {
     const d = (item && item.descriptions) || {};
-    const names = [];
+    const catalog = [];
+    const own = [];
     const raw = Array.isArray(d.card_tags) ? d.card_tags : [];
     for (const entry of raw) {
       const name = String(typeof entry === "string" ? entry : (entry && entry.name) || "").trim();
-      if (name && !names.includes(name)) names.push(name);
+      if (!name || catalog.includes(name) || own.includes(name)) continue;
+      const source = entry && typeof entry === "object" && entry.source === "catalog" ? "catalog" : "own";
+      (source === "catalog" ? catalog : own).push(name);
     }
-    if (!names.length) {
-      const own = seriesTagOf(item);
+    if (!catalog.length && !own.length) {
       const shared = catalogTagOf(item);
-      if (own) names.push(own);
-      if (shared && shared !== own) names.push(shared);
+      const mine = seriesTagOf(item);
+      if (shared) catalog.push(shared);
+      if (mine && mine !== shared) own.push(mine);
     }
-    return names;
+    return catalog.concat(own);
   }
 
   function paletteForTag(name) {
@@ -649,9 +652,11 @@ const WeekPlanner = (() => {
 
     const author = escHtml(item.author_name || "—");
     const title = escHtml(titleOf(item));
-    const tagBadges = cardTags
-      .map((name) => `<span class="series-pill"${pillStyle(paletteForTag(name))}>${escHtml(name)}</span>`)
-      .join("");
+    const tagBadges = cardTags.length
+      ? `<div class="week-card-badges">${cardTags
+          .map((name) => `<span class="series-pill"${pillStyle(paletteForTag(name))}>${escHtml(name)}</span>`)
+          .join("")}</div>`
+      : "";
 
     const showClear = inSlot && onClearSlot && canClearSlot(item, me);
     const showApprove = inSlot && me.role === "admin" && onToggleApprove;
@@ -699,7 +704,7 @@ const WeekPlanner = (() => {
       <div class="week-card-body">
         ${checks}
         <div class="week-card-top">
-          <div class="week-card-badges">${tagBadges}</div>
+          ${tagBadges}
         </div>
         <div class="week-card-title">${title}</div>
         <div class="week-card-author">${avatarHtml}<span class="week-card-author-name">${author}</span></div>

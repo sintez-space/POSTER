@@ -270,29 +270,37 @@ const CopyFields = {
   renderTagBubbles(root) {
     if (!root) return;
     CopyFields.tagRoot = root;
-    const assigned = root.querySelector("[data-card-tag-bubbles]");
-    const available = root.querySelector("[data-available-tag-bubbles]");
-    if (!assigned) return;
-    assigned.innerHTML = "";
-    if (available) available.innerHTML = "";
+    const catalogMount = root.querySelector("[data-catalog-tag-bubbles]");
+    const ownMount = root.querySelector("[data-own-tag-bubbles]");
+    if (!catalogMount || !ownMount) return;
     const locked = CopyFields.formLocked;
-    for (const tag of CopyFields.cardTags) {
-      assigned.appendChild(CopyFields._bubble(tag, { assigned: true, locked }));
-    }
-    if (!CopyFields.cardTags.length) assigned.innerHTML = "";
-    if (!available) return;
-    const have = new Set(CopyFields.cardTags.map((t) => t.name.toLowerCase()));
-    const pool = [];
-    for (const t of CopyFields.seriesTagsList) pool.push({ name: t.name, source: "own", color: t.color });
-    for (const t of CopyFields.catalogTagsList) {
-      if (!pool.some((x) => x.name.toLowerCase() === t.name.toLowerCase())) {
-        pool.push({ name: t.name, source: "catalog", color: t.color });
+    const paint = (mount, source, list) => {
+      mount.innerHTML = "";
+      const seen = new Set();
+      const rows = [];
+      for (const t of list || []) {
+        const name = String(t && t.name ? t.name : "").trim();
+        const key = name.toLowerCase();
+        if (!name || seen.has(key)) continue;
+        seen.add(key);
+        rows.push({ name, source, color: t.color });
       }
-    }
-    for (const tag of pool) {
-      if (have.has(tag.name.toLowerCase())) continue;
-      available.appendChild(CopyFields._bubble(tag, { assigned: false, locked }));
-    }
+      for (const t of CopyFields.cardTags) {
+        if ((t.source === "catalog" ? "catalog" : "own") !== source) continue;
+        const key = t.name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        rows.push({ name: t.name, source, color: CopyFields._tagColor(t.name, source) });
+      }
+      for (const tag of rows) {
+        const on = CopyFields.cardTags.some(
+          (c) => c.name.toLowerCase() === tag.name.toLowerCase() && (c.source === "catalog" ? "catalog" : "own") === source
+        );
+        mount.appendChild(CopyFields._bubble(tag, { assigned: on, locked }));
+      }
+    };
+    paint(catalogMount, "catalog", CopyFields.catalogTagsList);
+    paint(ownMount, "own", CopyFields.seriesTagsList);
   },
 
   canEditTag(tag) {

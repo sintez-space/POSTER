@@ -761,6 +761,14 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.week-card-overlay-bottom .week-card-badges {
+  width: 100%;
+  max-height: 34px;
+  overflow: hidden;
+}
+.week-card-overlay-bottom .series-pill {
+  text-shadow: none;
+}
 .week-card-overlay-bottom .week-card-author {
   width: 100%;
   max-width: 100%;
@@ -2046,8 +2054,16 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
   gap: 6px;
   min-height: 28px;
 }
-.tag-bubble-list + .tag-bubble-list {
+.tag-block + .tag-block {
   margin-top: 16px;
+}
+.tag-block-label {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
 }
 .tag-bubble-hint {
   margin: 8px 0 4px;
