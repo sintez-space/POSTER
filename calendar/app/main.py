@@ -492,6 +492,96 @@ def api_create_series_tag(
         return _series_tag_payload(conn, target)
 
 
+def _rename_tag_on_cards(conn, old: str, new: str, source: str, user_id: str | None = None):
+    if not old or old == new:
+        return
+    if user_id:
+        rows = conn.execute(
+            "SELECT id, descriptions_json FROM submissions WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT id, descriptions_json FROM submissions").fetchall()
+    field = "series_tag" if source == "own" else "catalog_tag"
+    now = db._utc_now()
+    for row in rows:
+        try:
+            desc = json.loads(row["descriptions_json"] or "{}")
+        except Exception:
+            continue
+        if not isinstance(desc, dict):
+            continue
+        changed = False
+        if (desc.get(field) or "").strip() == old:
+            desc[field] = new
+            changed = True
+        raw_tags = desc.get("card_tags")
+        if isinstance(raw_tags, list):
+            rebuilt = []
+            for entry in raw_tags:
+                if isinstance(entry, str):
+                    text = entry.strip()
+                    if text == old and (desc.get(field) == new):
+                        rebuilt.append(new)
+                        changed = True
+                    else:
+                        rebuilt.append(entry)
+                    continue
+                if not isinstance(entry, dict):
+                    rebuilt.append(entry)
+                    continue
+                entry_name = str(entry.get("name") or "").strip()
+                entry_source = str(entry.get("source") or "")
+                same_source = entry_source == source or (not entry_source and source == "own")
+                if entry_name == old and same_source:
+                    entry["name"] = new
+                    entry["source"] = source
+                    changed = True
+                rebuilt.append(entry)
+            desc["card_tags"] = rebuilt
+        if not changed:
+            continue
+        conn.execute(
+            "UPDATE submissions SET descriptions_json = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(desc, ensure_ascii=False), now, row["id"]),
+        )
+
+
+@app.patch("/api/series-tags/{name}")
+def api_update_series_tag(
+    name: str,
+    body: dict = Body(default_factory=dict),
+    calendar_session: str | None = Cookie(default=None),
+):
+    user = auth.user_by_token(calendar_session)
+    if not user:
+        raise HTTPException(status_code=401, detail="нужен вход")
+    old = _tag_name(name)
+    new = _tag_name(body.get("name") or old)
+    color = _tag_color(body.get("color"))
+    target = _series_owner_id(user, str(body.get("user_id") or ""))
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT name FROM user_series_tags WHERE user_id = ? AND name = ?",
+            (target, old),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="тег не найден")
+        if new != old:
+            clash = conn.execute(
+                "SELECT 1 FROM user_series_tags WHERE user_id = ? AND name = ?",
+                (target, new),
+            ).fetchone()
+            if clash:
+                raise HTTPException(status_code=409, detail="тег с таким названием уже есть")
+        conn.execute(
+            "UPDATE user_series_tags SET name = ?, color = ? WHERE user_id = ? AND name = ?",
+            (new, color, target, old),
+        )
+        _rename_tag_on_cards(conn, old, new, "own", user_id=target)
+        return _series_tag_payload(conn, target)
+
+
 @app.delete("/api/series-tags/{name}")
 def api_delete_series_tag(
     name: str,
@@ -541,6 +631,34 @@ def api_create_catalog_tag(
             """,
             (raw_name, color, now),
         )
+        return _catalog_payload(conn)
+
+
+@app.patch("/api/catalog-tags/{name}")
+def api_update_catalog_tag(
+    name: str,
+    body: dict = Body(default_factory=dict),
+    calendar_session: str | None = Cookie(default=None),
+):
+    user = auth.user_by_token(calendar_session)
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="общий тег может изменить только админ")
+    old = _tag_name(name)
+    new = _tag_name(body.get("name") or old)
+    color = _tag_color(body.get("color"), "#60a5fa")
+    with db.connect() as conn:
+        row = conn.execute("SELECT name FROM catalog_tags WHERE name = ?", (old,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="тег не найден")
+        if new != old:
+            clash = conn.execute("SELECT 1 FROM catalog_tags WHERE name = ?", (new,)).fetchone()
+            if clash:
+                raise HTTPException(status_code=409, detail="общий тег с таким названием уже есть")
+        conn.execute(
+            "UPDATE catalog_tags SET name = ?, color = ? WHERE name = ?",
+            (new, color, old),
+        )
+        _rename_tag_on_cards(conn, old, new, "catalog")
         return _catalog_payload(conn)
 
 

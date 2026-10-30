@@ -1248,6 +1248,8 @@
       return { tags, names: participantNames };
     }
 
+    let catalogEdit = null;
+
     function renderCatalogAdmin() {
       const bar = document.getElementById("catalogAdminBar");
       const mount = document.getElementById("settingsCatalogMount");
@@ -1277,17 +1279,29 @@
       const list = document.createElement("div");
       list.className = "catalog-admin-chips";
       for (const t of CopyFields.catalogTagsList || []) {
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "cal-filter-chip is-tag";
-        chip.title = "Удалить общий тег";
-        chip.innerHTML = `<span></span><span class="cal-filter-x" aria-hidden="true">×</span>`;
-        chip.querySelector("span").textContent = t.name;
-        if (t.color) chip.style.color = t.color;
-        chip.onclick = async () => {
+        const chip = document.createElement("span");
+        chip.className = "cal-filter-chip is-tag settings-tag-chip";
+        const chipLabel = document.createElement("span");
+        chipLabel.textContent = t.name;
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "tag-bubble-edit";
+        editBtn.textContent = "✎";
+        editBtn.title = "Изменить тег";
+        editBtn.onclick = () => {
+          catalogEdit = { name: t.name, color: t.color || "#60a5fa" };
+          renderCatalogAdmin();
+        };
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "tag-bubble-edit";
+        delBtn.textContent = "×";
+        delBtn.title = "Удалить общий тег";
+        delBtn.onclick = async () => {
           if (!confirm(`Удалить общий тег «${t.name}»? Он снимется со всех карточек.`)) return;
           try {
             const res = await api(`/api/catalog-tags/${encodeURIComponent(t.name)}`, { method: "DELETE" });
+            if (catalogEdit && catalogEdit.name === t.name) catalogEdit = null;
             CopyFields.setCatalogTags(res);
             CopyFields.populateCatalogSelect(copyRoot, "");
             if (planner) planner.load();
@@ -1295,30 +1309,33 @@
             alert(err.message || String(err));
           }
         };
+        if (t.color) chip.style.color = t.color;
+        chip.append(chipLabel, editBtn, delBtn);
         list.appendChild(chip);
       }
       const form = document.createElement("div");
       form.className = "settings-tag-form";
       const nameLabel = document.createElement("label");
       nameLabel.className = "field-label";
-      nameLabel.textContent = "Новый общий тег";
+      nameLabel.textContent = catalogEdit ? "Изменить общий тег" : "Новый общий тег";
       const nameInp = document.createElement("input");
       nameInp.type = "text";
       nameInp.className = "settings-tag-name";
       nameInp.maxLength = 24;
       nameInp.placeholder = "Одно слово, без пробелов";
+      if (catalogEdit) nameInp.value = catalogEdit.name;
       const colorRow = document.createElement("div");
       colorRow.className = "settings-tag-color-row";
       const colorLabel = document.createElement("span");
       colorLabel.textContent = "Цвет";
       const colorInp = document.createElement("input");
       colorInp.type = "color";
-      colorInp.value = "#60a5fa";
+      colorInp.value = catalogEdit && /^#[0-9a-fA-F]{6}$/.test(catalogEdit.color || "") ? catalogEdit.color : "#60a5fa";
       colorInp.title = "Цвет общего тега";
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "primary";
-      btn.textContent = "Создать";
+      btn.textContent = catalogEdit ? "Сохранить" : "Создать";
       btn.onclick = async () => {
         const raw = nameInp.value.trim();
         if (!raw) {
@@ -1330,18 +1347,37 @@
           return;
         }
         try {
-          const res = await api("/api/catalog-tags", {
-            method: "POST",
-            body: JSON.stringify({ name: raw, color: colorInp.value }),
-          });
+          const editing = catalogEdit;
+          const res = editing
+            ? await api(`/api/catalog-tags/${encodeURIComponent(editing.name)}`, {
+                method: "PATCH",
+                body: JSON.stringify({ name: raw, color: colorInp.value }),
+              })
+            : await api("/api/catalog-tags", {
+                method: "POST",
+                body: JSON.stringify({ name: raw, color: colorInp.value }),
+              });
+          catalogEdit = null;
           nameInp.value = "";
           CopyFields.setCatalogTags(res);
           CopyFields.populateCatalogSelect(copyRoot);
+          if (editing && planner) planner.load();
         } catch (err) {
           alert(err.message || String(err));
         }
       };
       colorRow.append(colorLabel, colorInp, btn);
+      if (catalogEdit) {
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "outline";
+        cancel.textContent = "Отмена";
+        cancel.onclick = () => {
+          catalogEdit = null;
+          renderCatalogAdmin();
+        };
+        colorRow.append(cancel);
+      }
       form.append(nameLabel, nameInp, colorRow);
       editor.append(list, form);
       mount.appendChild(editor);

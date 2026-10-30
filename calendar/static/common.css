@@ -2067,10 +2067,18 @@ label { display: block; margin: 0 0 6px; color: var(--foreground); font-size: 13
 .tag-bubble.is-available {
   background: transparent;
 }
-.tag-bubble-x {
+.tag-bubble-x,
+.tag-bubble-edit {
   font-size: 14px;
   line-height: 1;
   opacity: 0.75;
+}
+.tag-bubble-edit {
+  cursor: pointer;
+}
+.tag-bubble-edit:hover,
+.tag-bubble-x:hover {
+  opacity: 1;
 }
 .user-view-tabs {
   display: flex;
@@ -2894,6 +2902,24 @@ table.admin th, table.admin td {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.settings-tag-chip {
+  gap: 2px;
+}
+.settings-tag-chip button {
+  width: auto;
+  height: auto;
+  min-height: 0;
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 4px;
+}
+.settings-tag-chip button:hover {
+  background: color-mix(in oklch, currentColor 16%, transparent);
 }
 .settings-tag-form {
   display: flex;

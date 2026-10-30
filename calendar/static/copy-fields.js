@@ -292,6 +292,14 @@ const CopyFields = {
     }
   },
 
+  canEditTag(tag) {
+    if (CopyFields.formLocked) return false;
+    const me = CopyFields.viewer;
+    if (!me || me.readonly || me.role === "observer") return false;
+    if (tag.source === "catalog") return me.role === "admin";
+    return true;
+  },
+
   _bubble(tag, opts) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -301,6 +309,18 @@ const CopyFields = {
     const label = document.createElement("span");
     label.textContent = tag.name;
     btn.appendChild(label);
+    if (!opts.locked && CopyFields.canEditTag(tag)) {
+      const edit = document.createElement("span");
+      edit.className = "tag-bubble-edit";
+      edit.textContent = "✎";
+      edit.title = "Изменить тег";
+      edit.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        CopyFields.openTagEditModal(tag);
+      });
+      btn.appendChild(edit);
+    }
     if (opts.assigned) {
       const x = document.createElement("span");
       x.className = "tag-bubble-x";
@@ -335,6 +355,104 @@ const CopyFields = {
     } catch (err) {
       alert(err.message || String(err));
     }
+  },
+
+  openTagEditModal(tag) {
+    if (!CopyFields.canEditTag(tag)) return;
+    let wrap = document.getElementById("tagEditBackdrop");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "tagEditBackdrop";
+      wrap.className = "modal-backdrop";
+      wrap.style.zIndex = "80";
+      wrap.innerHTML = `
+        <div class="modal settings-modal" role="dialog" aria-modal="true">
+          <div class="modal-header">
+            <div class="modal-header-text">
+              <h2 id="tagEditTitle">Изменить тег</h2>
+              <p class="modal-desc">Новое имя попадёт на все карточки, где тег уже стоит.</p>
+            </div>
+          </div>
+          <div class="modal-body settings-body">
+            <div class="settings-tag-form">
+              <label class="field-label" for="tagEditName">Название</label>
+              <input type="text" id="tagEditName" class="settings-tag-name" maxlength="24" placeholder="Одно слово, без пробелов">
+              <div class="settings-tag-color-row">
+                <span>Цвет</span>
+                <input type="color" id="tagEditColor" value="#2dd4bf">
+                <button type="button" class="primary" id="tagEditSave">Сохранить</button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <span class="footer-spacer"></span>
+            <button type="button" class="outline" id="tagEditCancel">Отмена</button>
+          </div>
+        </div>`;
+      document.body.appendChild(wrap);
+      wrap.addEventListener("click", (e) => {
+        if (e.target === wrap) wrap.classList.remove("open");
+      });
+      wrap.querySelector("#tagEditCancel").onclick = () => wrap.classList.remove("open");
+    }
+    const color = tag.color || CopyFields._tagColor(tag.name, tag.source);
+    wrap.querySelector("#tagEditTitle").textContent = `Тег «${tag.name}»`;
+    const nameInp = wrap.querySelector("#tagEditName");
+    const colorInp = wrap.querySelector("#tagEditColor");
+    nameInp.value = tag.name;
+    colorInp.value = /^#[0-9a-fA-F]{6}$/.test(color) ? color : tag.source === "catalog" ? "#60a5fa" : "#2dd4bf";
+    wrap.querySelector("#tagEditSave").onclick = async () => {
+      const raw = nameInp.value.trim();
+      if (!raw) {
+        alert("Введите название тега (одно слово без пробелов).");
+        return;
+      }
+      if (/\s/.test(raw)) {
+        alert("Название тега должно состоять из одного слова без пробелов.");
+        return;
+      }
+      try {
+        await CopyFields.saveTagEdit(tag, raw, colorInp.value);
+        wrap.classList.remove("open");
+      } catch (err) {
+        alert(err.message || String(err));
+      }
+    };
+    wrap.classList.add("open");
+    nameInp.focus();
+  },
+
+  async saveTagEdit(tag, name, color) {
+    const old = tag.name;
+    let res;
+    if (tag.source === "catalog") {
+      res = await api(`/api/catalog-tags/${encodeURIComponent(old)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name, color }),
+      });
+      CopyFields.setCatalogTags(res);
+    } else {
+      const body = { name, color };
+      if (
+        CopyFields.viewer &&
+        CopyFields.viewer.role === "admin" &&
+        CopyFields.tagOwnerId &&
+        CopyFields.tagOwnerId !== CopyFields.viewer.id
+      ) {
+        body.user_id = CopyFields.tagOwnerId;
+      }
+      res = await api(`/api/series-tags/${encodeURIComponent(old)}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      CopyFields.setSeriesTags(res);
+    }
+    CopyFields.cardTags = CopyFields.cardTags.map((t) =>
+      t.source === tag.source && t.name.toLowerCase() === old.toLowerCase() ? { ...t, name } : t
+    );
+    CopyFields.renderTagBubbles(CopyFields.tagRoot);
+    if (typeof CopyFields.onTagsChanged === "function") CopyFields.onTagsChanged(res);
+    return res;
   },
 
   openTagRemoveModal(tag) {
