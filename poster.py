@@ -221,6 +221,27 @@ def merge_accounts(*raws):
     return out
 
 
+def read_sections(text_file):
+    """Разделы одного txt, если между ними три пустые строки."""
+    if not text_file.exists():
+        return {}
+    raw = text_file.read_text(encoding="utf-8").replace("\r\n", "\n").strip()
+    if "\n\n\n\n" not in raw:
+        return {}
+    out = {}
+    for block in raw.split("\n\n\n\n"):
+        block = block.strip("\n")
+        if not block:
+            continue
+        title, sep, body = block.partition("\n")
+        title = title.strip()
+        if title and sep:
+            out[title] = body.strip()
+    if "Текст" not in out and "Хештеги" not in out:
+        return {}
+    return out
+
+
 def read_sidecar(text_file, kind):
     path = text_file.with_name(f"{text_file.stem}.{kind}.txt")
     if path.exists():
@@ -243,10 +264,20 @@ def resolve_instagram_people(text_file, folder, cfg):
             reel_raws.append(lines[1])
     collab_raws.append(read_sidecar(text_file, "collaborators"))
     reel_raws.append(read_sidecar(text_file, "reel_tags"))
+    sections = read_sections(text_file)
+    if sections.get("Коллабораторы"):
+        collab_raws.append(sections["Коллабораторы"])
+    if sections.get("Теги на рилсе"):
+        reel_raws.append(sections["Теги на рилсе"])
     return merge_accounts(*collab_raws), merge_accounts(*reel_raws)
 
 
 def read_caption(text_file):
+    sections = read_sections(text_file)
+    if sections:
+        raw_tags = sections.get("Хештеги") or ""
+        tags = [part for part in re.split(r"[\s,]+", raw_tags) if part.strip()]
+        return sections.get("Текст") or "", tags
     caption = text_file.read_text(encoding="utf-8").strip() if text_file.exists() else ""
     tags_file = text_file.with_name(f"{text_file.stem}.tags.txt")
     tags = []
@@ -267,6 +298,13 @@ def resolve_youtube_fields(text_file, folder, cfg, caption, tags):
             title = lines[0]
         if len(lines) > 1:
             desc_extra = "\n".join(lines[1:])
+    sections = read_sections(text_file)
+    youtube_section = sections.get("YouTube") or ""
+    if youtube_section:
+        yt_lines = youtube_section.split("\n", 1)
+        title = yt_lines[0].strip() or title
+        if len(yt_lines) > 1 and yt_lines[1].strip():
+            desc_extra = yt_lines[1].strip()
     side_title = read_sidecar(text_file, "youtube_title")
     if side_title:
         title = side_title.split("\n", 1)[0].strip()

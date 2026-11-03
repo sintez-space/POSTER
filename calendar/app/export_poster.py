@@ -45,8 +45,46 @@ def _format_mentions_at(raw: str) -> str:
     return " ".join(dict.fromkeys(items))
 
 
+def _section(title: str, body: str) -> str:
+    body = (body or "").strip()
+    if not body:
+        return ""
+    return f"{title}\n{body}"
+
+
+def _join_sections(parts: list[str]) -> str:
+    """Три пустые строки между разделами одного документа."""
+    return "\n\n\n\n".join(part for part in parts if part)
+
+
+def _author_block(author_name: str, handles: dict) -> str:
+    lines = []
+    if (author_name or "").strip():
+        lines.append(author_name.strip())
+    labels = (
+        ("instagram_handle", "instagram"),
+        ("tiktok_handle", "tiktok"),
+        ("youtube_handle", "youtube"),
+        ("vk_handle", "vk"),
+        ("telegram_handle", "telegram"),
+    )
+    for key, label in labels:
+        value = (handles.get(key) or "").strip()
+        if value:
+            lines.append(f"{label}: {value}")
+    return "\n".join(lines)
+
+
+def _youtube_block(title: str, body: str) -> str:
+    title = (title or "").strip()
+    body = (body or "").strip()
+    if title and body:
+        return f"{title}\n\n{body}"
+    return title or body
+
+
 def _prepare_post_bundle(sub: dict, prof: dict, author_name: str, stem: str):
-    """Формирует набор текстовых sidecar-файлов и метаданных поста для POSTER."""
+    """Один txt на документ: текст, теги и прочие разделы через три пустые строки."""
     desc = sub["descriptions"] or {}
     base = (desc.get("base") or desc.get("tiktok") or "").strip()
     ig = (desc.get("instagram") or base).strip()
@@ -69,39 +107,26 @@ def _prepare_post_bundle(sub: dict, prof: dict, author_name: str, stem: str):
         if prof.get(k)
     }
 
-    text_files = {
-        f"{stem}.txt": tt_final or base,
-    }
-    if ig and ig != tt_final:
-        text_files[f"{stem}.instagram.txt"] = ig
-    if yt_body:
-        text_files[f"{stem}.youtube.txt"] = yt_body
-    if yt_title:
-        text_files[f"{stem}.youtube_title.txt"] = yt_title
-    if vk and vk != tt_final:
-        text_files[f"{stem}.vk.txt"] = vk
-    if tags:
-        text_files[f"{stem}.tags.txt"] = tags
-    if collab:
-        text_files[f"{stem}.collaborators.txt"] = collab
-    if reel:
-        text_files[f"{stem}.reel_tags.txt"] = reel
-    if tt_mentions:
-        text_files[f"{stem}.tiktok_mentions.txt"] = tt_mentions
-    if author_handles:
-        text_files[f"{stem}.author.json"] = json.dumps(
-            {"author_name": author_name, "handles": author_handles},
-            ensure_ascii=False,
-            indent=2,
-        )
-
-    return text_files, author_handles
+    text = _join_sections(
+        [
+            _section("Текст", tt_final or base),
+            _section("Instagram", ig if ig and ig != (tt_final or base) else ""),
+            _section("YouTube", _youtube_block(yt_title, yt_body if yt_body != (tt_final or base) else "")),
+            _section("ВК", vk if vk and vk != (tt_final or base) else ""),
+            _section("Хештеги", tags),
+            _section("Коллабораторы", collab),
+            _section("Теги на рилсе", reel),
+            _section("Упоминания TikTok", tt_mentions),
+            _section("Автор", _author_block(author_name, author_handles)),
+        ]
+    )
+    return {f"{stem}.txt": text}, author_handles
 
 
 def build_day_zip(date_iso: str) -> tuple[bytes, str]:
     """
     Собирает все запланированные на день YYYY-MM-DD материалы в один ZIP-архив:
-    - папка posts/ (готовая для запуска poster.py: 001.mp4, 001.txt, 001.cover.jpg, 001.tags.txt, 001.collaborators.txt, 001.reel_tags.txt и карусели)
+    - папка posts/ (001.mp4, 001.cover.jpg, один 001.txt со всеми разделами и карусели)
     - папка slots/<HH-MM>_slot<1|2>_<Автор>/ (разложенные по времени и автору папки)
     - файл posts/poster_queue.json (полное расписание и цепочка задач для poster.py)
     """
