@@ -3,6 +3,8 @@
   "profile_dir": "chrome_profile",
   "port": 9333,
   "posts_folder": "posts",
+  "carousel_folder": "C:\\Users\\SYNTHESIS\\Downloads\\АССИНТЕЗИЯ\\karuseli_vse\\C_kollazh",
+  "hashtag_pool": "",
   "lm_mode": "local",
   "lm_url": "http://localhost:1234/v1/chat/completions",
   "lm_api_url": "",

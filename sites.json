@@ -4,6 +4,7 @@
     "note": "первая сеть, с неё начинаем",
     "url": "https://www.tiktok.com/tiktokstudio/upload?from=upload",
     "char_limit": 4000,
+    "photo_switch": "Upload photos|Photo post|^Photo$|^Photos$|Фотографии|Загрузить фото",
     "adapt_prompt": "Адаптируй подпись для TikTok. Лимит {limit} символов, включая хэштеги. Сохрани смысл, язык и хэштеги. Не добавляй новых фактов. Верни только готовый текст.",
     "file_input": "input[type='file']",
     "caption_selectors": [

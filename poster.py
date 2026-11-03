@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import re
 import shutil
 import sys
@@ -21,6 +22,9 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 VIDEO_EXT = {".mp4", ".mov", ".webm", ".mkv"}
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
+HASHTAG_LIMITS = {"instagram": 15, "tiktok": 5}
+CAROUSEL_SITES = {"instagram", "tiktok"}
 # Текст кнопки, которую нельзя нажимать. «Запланировать» тоже: это часто сама кнопка отправки.
 PUBLISH = re.compile(
     r"post|publish|share|опубликовать|поделиться|запланировать|schedule|отложить",
@@ -108,6 +112,44 @@ def natural_key(path):
 def normalize_tag(tag):
     token = re.sub(r"\s+", "", (tag or "").strip().lstrip("#"))
     return f"#{token}" if token else ""
+
+
+def parse_hashtag_pool(raw):
+    """Общий список хештегов: через пробел, запятую или с новой строки."""
+    seen = set()
+    out = []
+    for part in re.split(r"[\s,;]+", raw or ""):
+        token = normalize_tag(part)
+        key = token.lower()
+        if not token or key in seen:
+            continue
+        seen.add(key)
+        out.append(token)
+    return out
+
+
+class TagDeck:
+    """Раздаёт теги без повтора внутри поста и без того же набора, пока колода не кончится."""
+
+    def __init__(self, tags):
+        self.pool = list(tags)
+        self.rest = []
+
+    def take(self, count):
+        if not self.pool or count <= 0:
+            return []
+        count = min(int(count), len(self.pool))
+        if len(self.rest) < count:
+            leftover = list(self.rest)
+            fresh = list(self.pool)
+            random.shuffle(fresh)
+            if leftover and fresh and fresh[0].lower() == leftover[-1].lower() and len(fresh) > 1:
+                fresh.append(fresh.pop(0))
+            have = {tag.lower() for tag in leftover}
+            self.rest = leftover + [tag for tag in fresh if tag.lower() not in have]
+        picked = self.rest[:count]
+        self.rest = self.rest[count:]
+        return picked
 
 
 def compose(caption, tags, limit):
@@ -247,7 +289,9 @@ def make_post(video, text_file, folder, cfg):
     yt_title, yt_description = resolve_youtube_fields(text_file, folder, cfg, caption, tags)
     return {
         "stem": text_file.stem,
+        "kind": "video",
         "video": video.resolve(),
+        "slides": [],
         "caption": caption,
         "tags": tags,
         "collaborators": collaborators,
@@ -255,6 +299,60 @@ def make_post(video, text_file, folder, cfg):
         "youtube_title": yt_title,
         "youtube_description": yt_description,
     }
+
+
+def is_image(path):
+    return path.is_file() and path.suffix.lower() in IMAGE_EXT
+
+
+def list_images(folder):
+    return sorted((path for path in folder.iterdir() if is_image(path)), key=natural_key)
+
+
+def carousel_text_file(folder):
+    for name in ("caption.txt", "text.txt", "post.txt"):
+        path = folder / name
+        if path.is_file():
+            return path
+    return folder / "caption.txt"
+
+
+def make_carousel(folder, slides, cfg):
+    text_file = carousel_text_file(folder)
+    caption, tags = read_caption(text_file) if text_file.exists() else ("", [])
+    collaborators, reel_tags = resolve_instagram_people(text_file, folder, cfg)
+    yt_title, yt_description = resolve_youtube_fields(text_file, folder, cfg, caption, tags)
+    return {
+        "stem": folder.name,
+        "kind": "carousel",
+        "video": None,
+        "slides": [path.resolve() for path in slides[:20]],
+        "caption": caption,
+        "tags": tags,
+        "collaborators": collaborators,
+        "reel_tags": reel_tags,
+        "youtube_title": yt_title,
+        "youtube_description": yt_description,
+    }
+
+
+def load_carousels(folder, cfg=None):
+    """Каждая вложенная папка с двумя и более картинками — одна карусель. Порядок слайдов — по имени файла."""
+    folder = Path(folder)
+    cfg = cfg or {}
+    if not str(folder).strip() or not folder.exists():
+        return []
+    posts = []
+    subs = sorted((path for path in folder.iterdir() if path.is_dir()), key=natural_key)
+    for sub in subs:
+        slides = list_images(sub)
+        if len(slides) < 2:
+            if slides:
+                say(f"{sub.name}: для карусели нужно хотя бы 2 слайда, сейчас {len(slides)}")
+            continue
+        posts.append(make_carousel(sub, slides, cfg))
+        say(f"карусель {sub.name}: {len(posts[-1]['slides'])} слайдов")
+    return posts
 
 
 def load_posts(folder, limit, cfg=None):
@@ -2382,18 +2480,69 @@ def fill_youtube(page, site, post, caption, when):
         raise StopSite(step, str(exc)) from exc
 
 
+def click_tiktok_photo(page, site):
+    pattern = re.compile(site.get("photo_switch") or r"Upload photos|Photo post|^Photo$|^Photos$|Фотографии|Загрузить фото", re.I)
+    for role in ("tab", "button", "link"):
+        item = first_visible(page.get_by_role(role, name=pattern))
+        if item is not None:
+            item.click(timeout=3000)
+            return True
+    return False
+
+
+def find_image_input(page):
+    for frame in page.frames:
+        loc = frame.locator("input[type='file']")
+        try:
+            count = loc.count()
+        except Exception:
+            continue
+        fallback = None
+        for index in range(count):
+            item = loc.nth(index)
+            accept = (item.get_attribute("accept") or "").lower()
+            if "image" in accept or "png" in accept or "jpg" in accept or "jpeg" in accept or "webp" in accept:
+                return item
+            if fallback is None:
+                fallback = item
+        if fallback is not None:
+            return fallback
+    return None
+
+
+def upload_tiktok_carousel(page, site, slides):
+    paths = [str(path) for path in slides[:35]]
+    if len(paths) < 2:
+        raise StopSite("file", "в карусели меньше двух слайдов")
+    field = find_image_input(page)
+    if field is None:
+        _scope, field = wait_upload_form(page, site)
+    field.set_input_files(paths, timeout=180000)
+    say(f"карусель TikTok: {len(paths)} слайдов")
+
+
 def fill_tiktok(page, site, post, caption, when):
     global _popup_site
     _popup_site = site
-    video = post["video"]
+    video = post.get("video")
+    is_carousel = post.get("kind") == "carousel"
     step = "open"
     try:
         page.goto(site["url"], wait_until="domcontentloaded", timeout=45000)
         step = "file"
+        if is_carousel:
+            if click_tiktok_photo(page, site):
+                say("TikTok: режим фото")
+                page.wait_for_timeout(800)
+            else:
+                say("TikTok: переключатель фото не нашёл, отдаю слайды в текущую форму")
         scope, field = wait_upload_form(page, site)
         say("форма:", scope.url if hasattr(scope, "url") else page.url)
         accept_popups(scope, site)
-        field.set_input_files(str(video_for_form(video)), timeout=120000)
+        if is_carousel:
+            upload_tiktok_carousel(page, site, post.get("slides") or [])
+        else:
+            field.set_input_files(str(video_for_form(video)), timeout=120000)
         step = "caption"
         editor = None
         deadline = time.monotonic() + 30
@@ -2414,11 +2563,15 @@ def fill_tiktok(page, site, post, caption, when):
         accept_popups(scope, site)
         page.set_default_timeout(5000)
         issues = []
-        steps = [
-            ("cover", lambda: set_cover(page, scope, site, video)),
-            ("location", lambda: set_location(page, scope, site)),
-            ("schedule", lambda: set_schedule(page, scope, site, when) if when else say("время не задано — расписание не трогаю")),
-        ]
+        steps = []
+        if not is_carousel:
+            steps.append(("cover", lambda: set_cover(page, scope, site, video)))
+        steps.extend(
+            [
+                ("location", lambda: set_location(page, scope, site)),
+                ("schedule", lambda: set_schedule(page, scope, site, when) if when else say("время не задано — расписание не трогаю")),
+            ]
+        )
         for step_name, action in steps:
             step = step_name
             done = False
@@ -2653,7 +2806,7 @@ def set_instagram_edit_cover(page, scope, site, cover_path):
 def instagram_progress_to_caption(page, site, video):
     """Crop → Edit (обложка) → подпись. Без Escape, с ретраями."""
     next_name = site.get("next_name") or r"^(Next|Далее)$"
-    cover_path = find_cover(video)
+    cover_path = find_cover(video) if video else None
     cover_done = cover_path is None
     attempts = max(instagram_step_attempts(site), int(site.get("cover_attempts") or 8))
     last = ""
@@ -3491,7 +3644,8 @@ def finish_instagram_schedule(page, site, when):
 def fill_instagram(page, site, post, caption, when):
     global _popup_site
     _popup_site = site
-    video = post["video"]
+    video = post.get("video")
+    is_carousel = post.get("kind") == "carousel"
     step = "open"
     try:
         page.goto(site["url"], wait_until="domcontentloaded", timeout=45000)
@@ -3510,8 +3664,15 @@ def fill_instagram(page, site, post, caption, when):
         started = time.monotonic()
         scope, field = wait_upload_form(page, site)
         say("форма:", scope.url if hasattr(scope, "url") else page.url)
-        field.set_input_files(str(video_for_form(video)), timeout=120000)
-        say(f"file: готово за {time.monotonic() - started:.1f} с")
+        if is_carousel:
+            paths = [str(item) for item in (post.get("slides") or [])[:20]]
+            if len(paths) < 2:
+                raise StopSite("file", "в карусели меньше двух слайдов")
+            field.set_input_files(paths, timeout=180000)
+            say(f"карусель: {len(paths)} слайдов за {time.monotonic() - started:.1f} с")
+        else:
+            field.set_input_files(str(video_for_form(video)), timeout=120000)
+            say(f"file: готово за {time.monotonic() - started:.1f} с")
         page.wait_for_timeout(1200)
         heal_instagram(page, site)
         step = "caption"
@@ -3543,7 +3704,7 @@ def fill_instagram(page, site, post, caption, when):
             say("коллабораторы:", ", ".join(users))
 
             add_instagram_collaborators(page, composer_scope(page), site, users)
-        if post.get("reel_tags"):
+        if post.get("reel_tags") and not is_carousel:
             step = "reel_tags"
             users = post["reel_tags"]
             say("теги на рилсе:", ", ".join(users))
@@ -3596,23 +3757,50 @@ def connect(port, slowmo):
     return pw, browser.contexts[0]
 
 
-def prepare_caption(cfg, site_cfg, post, adapt, site_id=None):
+def prepare_caption(cfg, site_cfg, post, adapt, site_id=None, tag_decks=None):
     limit = int(site_cfg.get("char_limit") or 4000)
+    tags = post["tags"]
+    deck = (tag_decks or {}).get(site_id)
+    if deck is not None and site_id in HASHTAG_LIMITS:
+        drawn = deck.take(HASHTAG_LIMITS[site_id])
+        if drawn:
+            tags = drawn
+            say(f"хештеги {site_id}: {' '.join(drawn)}")
     if site_id == "youtube":
-        text = (post.get("youtube_description") or compose(post["caption"], post["tags"], limit))[:limit]
+        text = (post.get("youtube_description") or compose(post["caption"], tags, limit))[:limit]
     else:
-        text = compose(post["caption"], post["tags"], limit)
+        text = compose(post["caption"], tags, limit)
     if adapt:
         text = adapt_text(cfg, site_cfg, text)
     return text
 
 
+def gather_posts(cfg, folder, limit):
+    posts = load_posts(folder, 0, cfg)
+    carousel_raw = str(cfg.get("carousel_folder") or "").strip()
+    if carousel_raw:
+        posts.extend(load_carousels(abs_under(ROOT, carousel_raw), cfg))
+    posts.sort(key=lambda post: natural_key(Path(post["stem"])))
+    if limit and int(limit) > 0:
+        posts = posts[: int(limit)]
+    return posts
+
+
+def make_tag_decks(cfg):
+    pool = parse_hashtag_pool(cfg.get("hashtag_pool") or "")
+    if not pool:
+        return {}
+    say(f"общий пул хештегов: {len(pool)}. Instagram до {HASHTAG_LIMITS['instagram']}, TikTok до {HASHTAG_LIMITS['tiktok']}")
+    return {site_id: TagDeck(pool) for site_id in HASHTAG_LIMITS}
+
+
 def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
     sites = load_sites()
-    posts = load_posts(folder, limit, cfg)
+    posts = gather_posts(cfg, folder, limit)
+    tag_decks = make_tag_decks(cfg)
     if not posts:
-        say(f"нет пар видео+текст в {folder}")
-        say("жду файлы вида 001.mp4 и 001.txt (хэштеги — в 001.tags.txt)")
+        say(f"нет постов в {folder}")
+        say("жду файлы вида 001.mp4 и 001.txt или папку каруселей со слайдами")
         return 1
     start = None
     if when_text:
@@ -3621,7 +3809,9 @@ def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
         if start != raw.replace(second=0, microsecond=0):
             say(f"время {raw.strftime('%H:%M')} округлено до {start.strftime('%Y-%m-%d %H:%M')}: у TikTok шаг 5 минут")
     interval = int(every if every is not None else cfg.get("interval_minutes") or 60)
-    say(f"постов: {len(posts)}; сети: {', '.join(site_ids)}; dry={dry}; adapt={adapt}")
+    videos = sum(1 for post in posts if post.get("kind") != "carousel")
+    carousels = len(posts) - videos
+    say(f"постов: {len(posts)} (видео {videos}, карусели {carousels}); сети: {', '.join(site_ids)}; dry={dry}; adapt={adapt}")
     if dry:
         for index, post in enumerate(posts):
             moment = start + timedelta(minutes=interval * index) if start else None
@@ -3630,21 +3820,27 @@ def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
                 if not site:
                     say(f"{site_id}: нет в sites.json")
                     continue
+                if post.get("kind") == "carousel" and site_id not in CAROUSEL_SITES:
+                    say(f"--- {site_id} {post['stem']} карусель пропущена: пока только Instagram и TikTok ---")
+                    continue
                 if not site.get("ready"):
                     say(f"{site_id}: браузер ещё не включён, ниже только текст")
-                text = prepare_caption(cfg, site, post, adapt, site_id) if site.get("char_limit") else post["caption"]
+                text = prepare_caption(cfg, site, post, adapt, site_id, tag_decks) if site.get("char_limit") else post["caption"]
                 say(f"--- {site_id} {post['stem']} {moment or 'без времени'} ---")
                 if site_id == "youtube":
                     say(f"название: {post.get('youtube_title', '')}")
                 say(text)
-                say(f"видео: {post['video']}")
-                cover = find_cover(post["video"])
-                if cover:
-                    say(f"обложка: {cover}")
+                if post.get("kind") == "carousel":
+                    say(f"карусель: {len(post.get('slides') or [])} слайдов")
+                else:
+                    say(f"видео: {post['video']}")
+                    cover = find_cover(post["video"])
+                    if cover:
+                        say(f"обложка: {cover}")
                 if site_id == "instagram":
                     if post.get("collaborators"):
                         say("коллабораторы:", ", ".join(post["collaborators"]))
-                    if post.get("reel_tags"):
+                    if post.get("reel_tags") and post.get("kind") != "carousel":
                         say("теги на рилсе:", ", ".join(post["reel_tags"]))
         return 0
 
@@ -3667,6 +3863,9 @@ def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
                 continue
             for index, post in enumerate(posts):
                 task_key = f"{site_id}:{post['stem']}"
+                if post.get("kind") == "carousel" and site_id not in CAROUSEL_SITES:
+                    say(f"=== {site_id} {post['stem']}: карусель пока только в Instagram и TikTok, пропускаю ===")
+                    continue
                 if q_state.get("completed", {}).get(task_key):
                     say(f"=== {site_id} {post['stem']}: пропуск (уже выполнено в очереди) ===")
                     continue
@@ -3676,7 +3875,7 @@ def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
                     except Exception:
                         moment = start + timedelta(minutes=interval * index) if start else None
                 else:
-                moment = start + timedelta(minutes=interval * index) if start else None
+                    moment = start + timedelta(minutes=interval * index) if start else None
                 page = None
                 try:
                     site_run = site
@@ -3702,7 +3901,7 @@ def run(cfg, folder, site_ids, limit, adapt, dry, slowmo, when_text, every):
                             "url": vk_normalize_url(vk_link),
                             "vk_channel_name": (cfg.get("vk_channel_name") or site.get("vk_channel_name") or "").strip(),
                         }
-                    text = prepare_caption(cfg, site_run, post, adapt, site_id)
+                    text = prepare_caption(cfg, site_run, post, adapt, site_id, tag_decks)
                     say(f"=== {site_id} {post['stem']} ({moment or 'без расписания'}) ===")
                     if site_id == "youtube":
                         say(f"название: {post.get('youtube_title', '')}")
@@ -3745,7 +3944,8 @@ def parse_args(argv):
     parser.add_argument("--limit", type=int, default=None, help="сколько постов взять с начала")
     parser.add_argument("--dry", action="store_true", help="только показать тексты, браузер не трогать")
     parser.add_argument("--headed-slowmo", nargs="?", const=400, type=int, default=0, help="замедление, мс")
-    parser.add_argument("--when", default="", help="время первого поста, 2026-10-27T18:00")
+    parser.add_argument("--when", default=None, help="время первого поста, 2026-10-27T18:00")
+    parser.add_argument("--carousel-folder", default=None, help="папка каруселей этой работы")
     parser.add_argument("--every", type=int, default=None, help="минут между постами")
     parser.add_argument("--config", default="", help="путь к config.json")
     parser.add_argument("--vk-url", default="", help="кабинет VK Видео (клипы сообщества)")
@@ -3767,6 +3967,12 @@ def main(argv=None):
             cfg["vk_url"] = args.vk_url.strip()
         if (args.vk_channel_name or "").strip():
             cfg["vk_channel_name"] = args.vk_channel_name.strip()
+        if args.carousel_folder is not None:
+            cfg["carousel_folder"] = args.carousel_folder
+        if "POSTER_HASHTAG_POOL" in os.environ:
+            cfg["hashtag_pool"] = os.environ.get("POSTER_HASHTAG_POOL") or ""
+        if "POSTER_CAROUSEL_FOLDER" in os.environ:
+            cfg["carousel_folder"] = os.environ.get("POSTER_CAROUSEL_FOLDER") or ""
         folder = abs_under(ROOT, args.folder or cfg.get("posts_folder") or "posts")
         if args.reset_queue:
             state_f = Path(folder) / ".poster_state.json"
@@ -3776,7 +3982,7 @@ def main(argv=None):
         raw_sites = args.sites or ",".join(cfg.get("sites") or ["tiktok"])
         site_ids = [part.strip().lower() for part in raw_sites.split(",") if part.strip()]
         limit = args.limit if args.limit is not None else cfg.get("limit")
-        when_text = args.when or cfg.get("schedule_start") or ""
+        when_text = args.when if args.when is not None else (cfg.get("schedule_start") or "")
         slowmo = args.headed_slowmo or int(cfg.get("slowmo") or 0)
         adapt = bool(args.adapt)
         return run(cfg, folder, site_ids, limit, adapt, args.dry, slowmo, when_text, args.every)

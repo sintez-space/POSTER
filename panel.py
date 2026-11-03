@@ -10,11 +10,12 @@ import os
 import subprocess
 import sys
 import threading
+import uuid
 import webbrowser
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -34,9 +35,7 @@ HOSTS_VK = {
 }
 
 _lock = threading.Lock()
-_proc = None
-_lines = []
-_exit = None
+_runs = {}
 
 
 def chrome_candidates():
@@ -59,6 +58,8 @@ def read_config():
     cfg.setdefault("profile_dir", "chrome_profile")
     cfg.setdefault("port", 9333)
     cfg.setdefault("posts_folder", "posts")
+    cfg.setdefault("carousel_folder", "")
+    cfg.setdefault("hashtag_pool", "")
     cfg.setdefault("lm_mode", "local")
     cfg.setdefault("lm_url", "http://localhost:1234/v1/chat/completions")
     cfg.setdefault("lm_api_url", "")
@@ -79,7 +80,88 @@ def read_config():
         found = chrome_candidates()
         if found:
             cfg["chrome_path"] = found[0]
+    ensure_jobs(cfg)
     return cfg
+
+
+def new_job_id():
+    return uuid.uuid4().hex[:8]
+
+
+def ensure_jobs(cfg):
+    jobs = cfg.get("jobs")
+    if isinstance(jobs, list) and jobs:
+        cfg["active_job"] = str(cfg.get("active_job") or jobs[0].get("id") or "")
+        return cfg
+    job_id = new_job_id()
+    cfg["jobs"] = [
+        {
+            "id": job_id,
+            "name": "Работа 1",
+            "posts_folder": cfg.get("posts_folder") or "posts",
+            "carousel_folder": cfg.get("carousel_folder") or "",
+            "hashtag_pool": cfg.get("hashtag_pool") or "",
+            "schedule_start": cfg.get("schedule_start") or "",
+            "interval_minutes": int(cfg.get("interval_minutes") or 60),
+            "limit": int(cfg.get("limit") if cfg.get("limit") is not None else 1),
+            "sites": list(cfg.get("sites") or ["tiktok"]),
+        }
+    ]
+    cfg["active_job"] = job_id
+    return cfg
+
+
+def active_job(cfg):
+    jobs = cfg.get("jobs") or []
+    wanted = str(cfg.get("active_job") or "")
+    for job in jobs:
+        if job.get("id") == wanted:
+            return job
+    return jobs[0] if jobs else None
+
+
+def normalize_job(raw, sites, fallback_name):
+    if not isinstance(raw, dict):
+        raise ValueError("работа задана неверно")
+    name = str(raw.get("name") or fallback_name).strip() or fallback_name
+    chosen = []
+    for site_id in raw.get("sites") or []:
+        site_id = str(site_id).strip().lower()
+        if site_id not in sites:
+            raise ValueError(f"в «{name}» неизвестная сеть: {site_id}")
+        if not sites[site_id].get("ready"):
+            raise ValueError(f"сеть «{site_id}» пока недоступна")
+        if site_id not in chosen:
+            chosen.append(site_id)
+    if not chosen:
+        raise ValueError(f"в работе «{name}» выбери хотя бы одну сеть")
+    try:
+        limit = int(raw.get("limit") if raw.get("limit") not in (None, "") else 1)
+    except (TypeError, ValueError):
+        limit = 1
+    if limit < 0:
+        limit = 1
+    try:
+        interval = int(raw.get("interval_minutes") if raw.get("interval_minutes") not in (None, "") else 60)
+    except (TypeError, ValueError):
+        interval = 60
+    if interval < 0:
+        raise ValueError(f"в «{name}» интервал вне диапазона")
+    when = str(raw.get("schedule_start") or "").strip()
+    if when:
+        when = snap_five(datetime.fromisoformat(when)).strftime("%Y-%m-%dT%H:%M")
+    job_id = str(raw.get("id") or "").strip() or new_job_id()
+    return {
+        "id": job_id,
+        "name": name[:40],
+        "posts_folder": str(raw.get("posts_folder") or "").strip(),
+        "carousel_folder": str(raw.get("carousel_folder") or "").strip(),
+        "hashtag_pool": str(raw.get("hashtag_pool") or "").strip(),
+        "schedule_start": when,
+        "interval_minutes": interval,
+        "limit": limit,
+        "sites": chosen,
+    }
 
 
 def check_vk(url):
@@ -113,17 +195,6 @@ def clean_config(data):
     slowmo = int(data["slowmo"]) if "slowmo" in data and str(data.get("slowmo")) != "" else 0
     if limit < 0 or interval < 0 or not 0 <= slowmo <= 5000:
         raise ValueError("лимит, интервал или замедление вне диапазона")
-    chosen = []
-    for site_id in data.get("sites") or []:
-        site_id = str(site_id).strip().lower()
-        if site_id not in sites:
-            raise ValueError(f"неизвестная сеть: {site_id}")
-        if not sites[site_id].get("ready"):
-            raise ValueError(f"сеть «{site_id}» пока недоступна")
-        if site_id not in chosen:
-            chosen.append(site_id)
-    if not chosen:
-        raise ValueError("выбери хотя бы одну сеть")
     if "vk_url" in data:
         raw_vk = str(data.get("vk_url") or "").strip()
         if raw_vk:
@@ -139,15 +210,40 @@ def clean_config(data):
         vk_channel_name = str(current.get("vk_channel_name") or "").strip()
     if not vk_channel_name:
         vk_channel_name = str(load_sites().get("vk", {}).get("vk_channel_name") or "").strip()
-    if "vk" in chosen and not vk_url:
+    raw_jobs = data.get("jobs")
+    if not isinstance(raw_jobs, list) or not raw_jobs:
+        current_jobs = current.get("jobs") or []
+        raw_jobs = [
+            {
+                "id": (current_jobs[0].get("id") if current_jobs else "") or new_job_id(),
+                "name": "Работа 1",
+                "posts_folder": data.get("posts_folder", current.get("posts_folder")),
+                "carousel_folder": data.get("carousel_folder", current.get("carousel_folder")),
+                "hashtag_pool": data.get("hashtag_pool", current.get("hashtag_pool")),
+                "schedule_start": data.get("schedule_start", current.get("schedule_start")),
+                "interval_minutes": data.get("interval_minutes", current.get("interval_minutes")),
+                "limit": data.get("limit", current.get("limit")),
+                "sites": data.get("sites") or current.get("sites") or [],
+            }
+        ]
+    jobs = []
+    seen_ids = set()
+    for index, raw in enumerate(raw_jobs):
+        job = normalize_job(raw, sites, f"Работа {index + 1}")
+        if job["id"] in seen_ids:
+            job["id"] = new_job_id()
+        seen_ids.add(job["id"])
+        jobs.append(job)
+    if any("vk" in job["sites"] for job in jobs) and not vk_url:
         raise ValueError(
             "для VK укажи ссылку на клипы сообщества в блоке «VK Клипы: страница сообщества» и сохрани"
         )
-    if "vk" in chosen and not vk_channel_name:
+    if any("vk" in job["sites"] for job in jobs) and not vk_channel_name:
         raise ValueError("для VK укажи имя канала (как в модалке «Новый клип»), например SINTEZ.SPACE")
-    when = str(data.get("schedule_start") or "").strip()
-    if when:
-        when = snap_five(datetime.fromisoformat(when)).strftime("%Y-%m-%dT%H:%M")
+    active_id = str(data.get("active_job") or current.get("active_job") or "").strip()
+    if active_id not in seen_ids:
+        active_id = jobs[0]["id"]
+    current_job = next(job for job in jobs if job["id"] == active_id)
     chrome_path = str(data.get("chrome_path") or "").strip()
     if chrome_path:
         exe = Path(chrome_path)
@@ -178,14 +274,13 @@ def clean_config(data):
         parsed_lm = urlparse(lm_api_url)
         if parsed_lm.scheme not in {"http", "https"} or not (parsed_lm.hostname or "").strip():
             raise ValueError("URL API ЛЛМ должен начинаться с http:// или https://")
-    folder = str(data.get("posts_folder") or "posts").strip()
-    if not folder:
-        raise ValueError("укажи папку постов")
     return {
         "chrome_path": chrome_path,
         "profile_dir": profile,
         "port": port,
-        "posts_folder": folder,
+        "posts_folder": current_job["posts_folder"],
+        "carousel_folder": current_job["carousel_folder"],
+        "hashtag_pool": current_job["hashtag_pool"],
         "lm_mode": lm_mode,
         "lm_url": lm_url,
         "lm_api_url": lm_api_url,
@@ -196,12 +291,14 @@ def clean_config(data):
         "youtube_title": str(data.get("youtube_title") if "youtube_title" in data else current.get("youtube_title") or "").strip(),
         "instagram_collaborators": str(data.get("instagram_collaborators") if "instagram_collaborators" in data else current.get("instagram_collaborators") or "").strip(),
         "instagram_reel_tags": str(data.get("instagram_reel_tags") if "instagram_reel_tags" in data else current.get("instagram_reel_tags") or "").strip(),
-        "schedule_start": when,
-        "interval_minutes": interval,
+        "schedule_start": current_job["schedule_start"],
+        "interval_minutes": current_job["interval_minutes"],
         "adapt": bool(data.get("adapt")),
-        "limit": limit,
+        "limit": current_job["limit"],
         "slowmo": slowmo,
-        "sites": chosen,
+        "sites": current_job["sites"],
+        "jobs": jobs,
+        "active_job": active_id,
     }
 
 
@@ -216,7 +313,10 @@ def profile_path(cfg):
 
 
 def posts_path(cfg):
-    return abs_under(ROOT, cfg["posts_folder"])
+    raw = (cfg.get("posts_folder") or "").strip()
+    if not raw:
+        raise RuntimeError("у этой работы не задана папка постов")
+    return abs_under(ROOT, raw)
 
 
 def list_posts(folder):
@@ -274,9 +374,25 @@ def chrome_status(port):
         return {"up": False, "browser": ""}
 
 
+def run_snapshot():
+    with _lock:
+        out = {}
+        for job_id, run in _runs.items():
+            proc = run.get("proc")
+            out[job_id] = {
+                "running": proc is not None and proc.poll() is None,
+                "exit": run.get("exit"),
+            }
+        return out
+
+
 def meta():
     cfg = read_config()
     sites = load_sites()
+    try:
+        posts = list_posts(posts_path(cfg))
+    except Exception:
+        posts = []
     return {
         "panel_version": PANEL_VERSION,
         "config": cfg,
@@ -286,7 +402,8 @@ def meta():
             if site_id in sites
         ],
         "chrome": chrome_status(cfg["port"]),
-        "posts": list_posts(posts_path(cfg)),
+        "posts": posts,
+        "runs": run_snapshot(),
     }
 
 
@@ -326,53 +443,103 @@ def start_chrome():
     )
 
 
-def append_line(line):
+def append_line(job_id, line):
     with _lock:
-        _lines.append(line.rstrip("\n"))
-        del _lines[:-400]
+        run = _runs.get(job_id)
+        if run is None:
+            return
+        run["lines"].append(line.rstrip("\n"))
+        del run["lines"][:-400]
 
 
-def read_log():
+def read_log(job_id):
     with _lock:
-        running = _proc is not None and _proc.poll() is None
-        return {"lines": list(_lines), "running": running, "exit": _exit}
+        run = _runs.get(job_id)
+        if run is None:
+            return {"lines": [], "running": False, "exit": None, "job_id": job_id}
+        proc = run.get("proc")
+        return {
+            "lines": list(run["lines"]),
+            "running": proc is not None and proc.poll() is None,
+            "exit": run.get("exit"),
+            "job_id": job_id,
+        }
 
 
-def pump(proc):
-    global _exit
+def running_job_id():
+    with _lock:
+        for job_id, run in _runs.items():
+            proc = run.get("proc")
+            if proc is not None and proc.poll() is None:
+                return job_id
+    return ""
+
+
+def pump(job_id, proc):
     try:
         for line in proc.stdout:
-            append_line(line)
+            append_line(job_id, line)
     finally:
         code = proc.wait()
         with _lock:
-            _exit = code
-        append_line(f"код завершения: {code}")
+            run = _runs.get(job_id)
+            stopped = bool(run and run.get("stopped"))
+            if run is not None:
+                run["exit"] = code
+        append_line(job_id, "остановлено" if stopped else f"код завершения: {code}")
 
 
-def start_run(dry):
-    global _proc, _exit
+def job_by_id(cfg, job_id):
+    for job in cfg.get("jobs") or []:
+        if job.get("id") == job_id:
+            return job
+    return None
+
+
+def start_run(dry, job_id):
     cfg = read_config()
-    with _lock:
-        if _proc is not None and _proc.poll() is None:
-            raise RuntimeError("уже выполняется. Дождись окончания.")
-        _lines.clear()
-        _exit = None
+    job = job_by_id(cfg, job_id) or active_job(cfg)
+    if not job:
+        raise RuntimeError("нет такой работы")
+    busy = running_job_id()
+    if busy:
+        other = job_by_id(cfg, busy)
+        other_name = (other or {}).get("name") or "другая работа"
+        if busy == job["id"]:
+            raise RuntimeError(f"«{job['name']}» уже выполняется")
+        raise RuntimeError(f"сейчас идёт «{other_name}». Останови её, потом запускай эту.")
+    posts_raw = (job.get("posts_folder") or "").strip()
+    carousel_raw = (job.get("carousel_folder") or "").strip()
+    if not posts_raw and not carousel_raw:
+        raise RuntimeError("укажи папку постов или папку каруселей — работа берёт материалы только оттуда")
+    if posts_raw:
+        folder = abs_under(ROOT, posts_raw)
+    else:
+        folder = ROOT / ".jobs" / job["id"]
+        folder.mkdir(parents=True, exist_ok=True)
+    if not dry and not job.get("schedule_start"):
+        raise RuntimeError("для заполнения укажи дату и время первого поста")
+    if "vk" in (job.get("sites") or []) and not (cfg.get("vk_url") or "").strip():
+        raise RuntimeError(
+            "для VK нужна ссылка vk_url: раскрой «VK Клипы», вставь URL кабинета (Клипы), нажми «Сохранить»"
+        )
     cmd = [
         sys.executable,
         "-u",
         str(ROOT / "poster.py"),
         "--folder",
-        str(posts_path(cfg)),
+        str(folder),
         "--sites",
-        ",".join(cfg["sites"]),
+        ",".join(job["sites"]),
         "--limit",
-        str(int(cfg["limit"])),
+        str(int(job["limit"])),
         "--every",
-        str(int(cfg["interval_minutes"])),
+        str(int(job["interval_minutes"])),
+        "--when",
+        job.get("schedule_start") or "",
+        "--carousel-folder",
+        carousel_raw,
     ]
-    if cfg.get("schedule_start"):
-        cmd += ["--when", cfg["schedule_start"]]
     if cfg.get("adapt"):
         cmd.append("--adapt")
     if dry:
@@ -386,16 +553,17 @@ def start_run(dry):
         cmd += ["--vk-url", vk_link]
     if vk_name:
         cmd += ["--vk-channel-name", vk_name]
-    if not dry and not cfg.get("schedule_start"):
-        raise RuntimeError("для заполнения укажи дату и время первого поста")
-    if "vk" in (cfg.get("sites") or []) and not (cfg.get("vk_url") or "").strip():
-        raise RuntimeError(
-            "для VK нужна ссылка vk_url: раскрой «VK Клипы», вставь URL кабинета (Клипы), нажми «Сохранить»"
-        )
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUNBUFFERED"] = "1"
-    append_line("запуск: " + " ".join(cmd))
+    env["POSTER_HASHTAG_POOL"] = job.get("hashtag_pool") or ""
+    env["POSTER_CAROUSEL_FOLDER"] = carousel_raw
+    with _lock:
+        _runs[job["id"]] = {"proc": None, "lines": [], "exit": None, "stopped": False, "name": job["name"]}
+    append_line(job["id"], f"работа «{job['name']}»: папка постов {folder}")
+    if carousel_raw:
+        append_line(job["id"], f"карусели: {carousel_raw}")
+    append_line(job["id"], "запуск: " + " ".join(cmd))
     proc = subprocess.Popen(
         cmd,
         cwd=str(ROOT),
@@ -407,9 +575,31 @@ def start_run(dry):
         env=env,
     )
     with _lock:
-        _proc = proc
-    threading.Thread(target=pump, args=(proc,), daemon=True).start()
-    return {"ok": True}
+        _runs[job["id"]]["proc"] = proc
+    threading.Thread(target=pump, args=(job["id"], proc), daemon=True).start()
+    return {"ok": True, "job_id": job["id"]}
+
+
+def stop_run(job_id):
+    cfg = read_config()
+    job = job_by_id(cfg, job_id) or active_job(cfg)
+    if not job:
+        raise RuntimeError("нет такой работы")
+    with _lock:
+        run = _runs.get(job["id"])
+        proc = run.get("proc") if run else None
+        if proc is None or proc.poll() is not None:
+            raise RuntimeError(f"«{job['name']}» сейчас не выполняется")
+        run["stopped"] = True
+        pid = proc.pid
+    append_line(job["id"], "останавливаю…")
+    subprocess.run(
+        ["taskkill", "/PID", str(pid), "/T", "/F"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return {"ok": True, "job_id": job["id"]}
 
 
 def open_dir(path):
@@ -454,7 +644,10 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/meta":
                 self.send_json(meta())
             elif path == "/api/log":
-                self.send_json(read_log())
+                job_id = (parse_qs(urlparse(self.path).query).get("job") or [""])[0]
+                if not job_id:
+                    job_id = (active_job(read_config()) or {}).get("id") or ""
+                self.send_json(read_log(job_id))
             else:
                 self.send_json({"error": "нет такого адреса"}, 404)
         except Exception as exc:
@@ -472,7 +665,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(start_chrome())
             elif path == "/api/run":
                 data = self.read_json()
-                self.send_json(start_run(bool(data.get("dry"))))
+                self.send_json(start_run(bool(data.get("dry")), str(data.get("job_id") or "")))
+            elif path == "/api/stop":
+                data = self.read_json()
+                self.send_json(stop_run(str(data.get("job_id") or "")))
             elif path == "/api/open/posts":
                 open_dir(posts_path(read_config()))
                 self.send_json({"ok": True})

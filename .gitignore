@@ -3,6 +3,7 @@ __pycache__/
 chrome_profile/
 *_profile/
 .upload/
+.jobs/
 errors/*
 !errors/.gitkeep
 run.log

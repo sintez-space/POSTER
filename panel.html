@@ -179,6 +179,42 @@
       min-height: 0;
     }
 
+    .jobBar {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      margin: 0 0 12px;
+      padding-bottom: 2px;
+    }
+    .jobTab {
+      flex: none;
+      border: 1px solid var(--border);
+      background: var(--btn-bg);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font: inherit;
+      font-size: var(--type-ui-size);
+      cursor: pointer;
+    }
+    .jobTab.isActive {
+      background: var(--btn-primary-bg);
+      border-color: var(--btn-primary-bg);
+      color: var(--btn-primary-fg);
+    }
+    .jobTab.isRunning:not(.isActive) {
+      box-shadow: inset 0 0 0 1px var(--btn-primary-bg);
+    }
+    .jobSettings { margin-bottom: 16px; }
+    .jobNameRow {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .jobNameRow input { flex: 1; min-width: 0; }
+    .jobPair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
     .toolbar {
       display: flex;
       align-items: center;
@@ -241,6 +277,10 @@
     }
     .iconBtn.iconBtnPlay svg {
       margin-left: 2px;
+    }
+    .iconBtn.iconBtnStop:hover:not(:disabled) {
+      border-color: #e11d48;
+      color: #e11d48;
     }
     #chrome.iconBtn {
       color: var(--accent);
@@ -368,7 +408,7 @@
       line-height: var(--type-label-leading);
       color: var(--muted);
     }
-    input[type="text"], input[type="url"], input[type="number"], input[type="datetime-local"] {
+    input[type="text"], input[type="url"], input[type="number"], input[type="datetime-local"], textarea {
       width: 100%;
       padding: 9px 11px;
       border: 1px solid var(--input-border);
@@ -379,7 +419,12 @@
       font-size: var(--type-body-size);
       line-height: var(--type-body-leading);
     }
-    input::placeholder { color: var(--muted); }
+    input::placeholder, textarea::placeholder { color: var(--muted); }
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+      line-height: 1.45;
+    }
     .pair { display: grid; grid-template-columns: 1fr 100px; gap: 12px; }
     .with-button { display: flex; gap: 10px; align-items: center; }
     .with-button input { flex: 1; min-width: 0; }
@@ -409,7 +454,7 @@
       transform: rotate(90deg);
     }
     .accordionBody {
-      padding: 0 14px 14px;
+      padding: 12px 14px 14px;
       border-top: 1px solid var(--border);
     }
 
@@ -482,6 +527,41 @@
     <div class="settings">
       <p id="status" role="status" aria-live="polite"></p>
 
+      <div class="jobBar" id="jobBar" role="tablist" aria-label="Работы"></div>
+      <div class="jobSettings">
+        <div class="jobNameRow">
+          <input id="job_name" type="text" spellcheck="false" aria-label="Название работы" placeholder="Название работы">
+          <button type="button" class="action" id="job-remove">Удалить</button>
+        </div>
+        <div class="field">
+          <label class="fieldLabel" for="posts_folder">Папка постов</label>
+          <div class="with-button">
+            <input id="posts_folder" type="text" spellcheck="false" autocomplete="off" placeholder="Только материалы этой работы">
+            <button type="button" class="action" id="open-posts">Открыть</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="fieldLabel" for="carousel_folder">Папка каруселей</label>
+          <input id="carousel_folder" type="text" spellcheck="false" autocomplete="off" placeholder="Каждая вложенная папка — одна карусель">
+          <p class="accordionNote">Работа читает только эти две папки. Другие вкладки её не видят.</p>
+        </div>
+        <div class="field">
+          <label class="fieldLabel" for="hashtag_pool">Хештеги этой работы</label>
+          <textarea id="hashtag_pool" spellcheck="false" placeholder="#синтез #выставка"></textarea>
+          <p class="accordionNote">Своя смесь на каждый пост. Instagram — до 15 тегов, TikTok — до 5.</p>
+        </div>
+        <div class="jobPair field">
+          <div>
+            <label class="fieldLabel" for="limit">Сколько материалов</label>
+            <input id="limit" type="number" min="0" step="1">
+          </div>
+          <div>
+            <label class="fieldLabel" for="interval_minutes">Интервал, мин</label>
+            <input id="interval_minutes" type="number" min="0" step="1">
+          </div>
+        </div>
+      </div>
+
       <div class="toolbar">
         <button type="button" class="iconBtn" id="chrome" aria-label="Chrome">
           <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="currentColor" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="currentColor" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="currentColor" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="currentColor" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -489,6 +569,9 @@
         <input id="schedule_start" class="toolbarSchedule" type="datetime-local" step="300" aria-label="Время публикаций">
         <button type="button" class="iconBtn iconBtnPlay" id="go" aria-label="Заполнить формы">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button type="button" class="iconBtn iconBtnStop" id="stop" aria-label="Остановить публикацию" disabled>
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
         </button>
         <button type="button" class="iconBtn iconAccent" id="open-root" aria-label="Папка POSTER">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
@@ -576,13 +659,6 @@
               <input id="port" type="number" min="1024" max="65535">
             </div>
           </div>
-          <div class="field">
-            <label class="fieldLabel" for="posts_folder">Папка постов</label>
-            <div class="with-button">
-              <input id="posts_folder" type="text" spellcheck="false" autocomplete="off">
-              <button type="button" class="action" id="open-posts">Открыть</button>
-            </div>
-          </div>
         </div>
       </details>
 
@@ -628,13 +704,18 @@
   </div>
 </div>
 <script>
-const fields = ["chrome_path", "profile_dir", "port", "posts_folder", "schedule_start", "lm_url", "lm_api_url", "lm_api_key", "lm_model", "vk_url", "vk_channel_name", "youtube_title", "instagram_collaborators", "instagram_reel_tags"];
+const sharedFields = ["chrome_path", "profile_dir", "port", "lm_url", "lm_api_url", "lm_api_key", "lm_model", "vk_url", "vk_channel_name", "youtube_title", "instagram_collaborators", "instagram_reel_tags"];
 const SITE_ORDER = ["instagram", "tiktok", "youtube", "vk", "telegram", "max"];
 const THEME_KEY = "poster-ui-theme";
 const SPLIT_KEY = "poster-ui-split";
 const SPLIT_MIN = 260;
 const SPLIT_MIN_LOG = 220;
-let running = false;
+let jobs = [];
+let activeJobId = "";
+let runState = {};
+let pollToken = 0;
+let jobBarSig = "";
+let lastSites = [];
 
 function initSplit() {
   const workspace = document.getElementById("workspace");
@@ -764,27 +845,42 @@ function snapFive(value) {
   return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) + "T" + pad(date.getHours()) + ":" + pad(date.getMinutes());
 }
 
-function formData() {
-  const data = {
-    adapt: false,
-    sites: [],
-    lm_mode: document.querySelector('input[name="lm_mode"]:checked')?.value || "local",
-  };
-  for (const id of fields) data[id] = document.getElementById(id).value;
-  for (const box of document.querySelectorAll("#sites input[type=checkbox]")) {
-    if (box.checked) data.sites.push(box.value);
-  }
-  return data;
+function currentJob() {
+  return jobs.find((job) => job.id === activeJobId) || jobs[0] || null;
 }
 
-function fill(meta) {
-  const cfg = meta.config;
-  for (const id of fields) {
-    if (cfg[id] !== undefined && cfg[id] !== null) {
-      document.getElementById(id).value = id === "schedule_start" ? snapFive(cfg[id]) : cfg[id];
-    }
+function captureJob() {
+  const job = currentJob();
+  if (!job) return;
+  job.name = document.getElementById("job_name").value.trim() || job.name;
+  job.posts_folder = document.getElementById("posts_folder").value.trim();
+  job.carousel_folder = document.getElementById("carousel_folder").value.trim();
+  job.hashtag_pool = document.getElementById("hashtag_pool").value;
+  job.schedule_start = document.getElementById("schedule_start").value;
+  job.limit = Number(document.getElementById("limit").value || 0);
+  job.interval_minutes = Number(document.getElementById("interval_minutes").value || 0);
+  job.sites = [];
+  for (const box of document.querySelectorAll("#sites input[type=checkbox]")) {
+    if (box.checked) job.sites.push(box.value);
   }
-  const byId = Object.fromEntries((meta.sites || []).map((site) => [site.id, site]));
+}
+
+function applyJob(job) {
+  if (!job) return;
+  document.getElementById("job_name").value = job.name || "";
+  document.getElementById("posts_folder").value = job.posts_folder || "";
+  document.getElementById("carousel_folder").value = job.carousel_folder || "";
+  document.getElementById("hashtag_pool").value = job.hashtag_pool || "";
+  document.getElementById("schedule_start").value = job.schedule_start ? snapFive(job.schedule_start) : "";
+  document.getElementById("limit").value = job.limit ?? 1;
+  document.getElementById("interval_minutes").value = job.interval_minutes ?? 60;
+  const remove = document.getElementById("job-remove");
+  if (remove) remove.disabled = jobs.length < 2;
+}
+
+function paintSites(siteList, job) {
+  const picked = new Set((job && job.sites) || []);
+  const byId = Object.fromEntries((siteList || []).map((site) => [site.id, site]));
   const box = document.getElementById("sites");
   box.innerHTML = "";
   for (const siteId of SITE_ORDER) {
@@ -799,11 +895,80 @@ function fill(meta) {
       (SITE_ICONS[site.id] || '<span class="siteIcon"></span>') +
       '<span class="siteName">' + name + "</span></div>" +
       '<label class="switch" aria-label="' + name + '"><input type="checkbox" value="' + site.id + '"' +
-      (site.ready && (cfg.sites || []).includes(site.id) ? " checked" : "") +
+      (site.ready && picked.has(site.id) ? " checked" : "") +
       (site.ready ? "" : " disabled") +
       '><span class="switchTrack"></span></label>';
     box.append(row);
   }
+}
+
+function paintJobBar() {
+  const sig = jobs.map((job) => job.id + ":" + job.name + ":" + (job.id === activeJobId ? "a" : "") + ":" + (runState[job.id] && runState[job.id].running ? "1" : "0")).join("|");
+  if (sig === jobBarSig) return;
+  jobBarSig = sig;
+  const bar = document.getElementById("jobBar");
+  bar.innerHTML = "";
+  for (const job of jobs) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "jobTab" + (job.id === activeJobId ? " isActive" : "") + (runState[job.id] && runState[job.id].running ? " isRunning" : "");
+    btn.setAttribute("role", "tab");
+    btn.setAttribute("aria-selected", job.id === activeJobId ? "true" : "false");
+    btn.textContent = job.name || "Работа";
+    btn.onclick = () => switchJob(job.id);
+    bar.append(btn);
+  }
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "jobTab";
+  add.textContent = "+";
+  add.title = "Новая работа";
+  add.setAttribute("aria-label", "Новая работа");
+  add.onclick = () => addJob();
+  bar.append(add);
+}
+
+function updateRunButtons() {
+  const mine = !!(runState[activeJobId] && runState[activeJobId].running);
+  const any = Object.values(runState).some((item) => item && item.running);
+  document.getElementById("stop").disabled = !mine;
+  document.getElementById("go").disabled = any;
+}
+
+function formData() {
+  captureJob();
+  const job = currentJob() || {};
+  const data = {
+    adapt: false,
+    lm_mode: document.querySelector('input[name="lm_mode"]:checked')?.value || "local",
+    jobs,
+    active_job: activeJobId,
+    sites: job.sites || [],
+    posts_folder: job.posts_folder || "",
+    carousel_folder: job.carousel_folder || "",
+    hashtag_pool: job.hashtag_pool || "",
+    schedule_start: job.schedule_start || "",
+    limit: job.limit,
+    interval_minutes: job.interval_minutes,
+  };
+  for (const id of sharedFields) data[id] = document.getElementById(id).value;
+  return data;
+}
+
+function fill(meta) {
+  lastSites = meta.sites || [];
+  const cfg = meta.config;
+  jobs = (cfg.jobs || []).map((job) => Object.assign({}, job, { sites: (job.sites || []).slice() }));
+  activeJobId = cfg.active_job || (jobs[0] && jobs[0].id) || "";
+  runState = meta.runs || {};
+  jobBarSig = "";
+  for (const id of sharedFields) {
+    if (cfg[id] !== undefined && cfg[id] !== null) document.getElementById(id).value = cfg[id];
+  }
+  applyJob(currentJob());
+  paintSites(meta.sites, currentJob());
+  paintJobBar();
+  updateRunButtons();
   const lmMode = cfg.lm_mode === "api" ? "api" : "local";
   const lmRadio = document.querySelector('input[name="lm_mode"][value="' + lmMode + '"]');
   if (lmRadio) lmRadio.checked = true;
@@ -836,48 +1001,84 @@ async function save() {
   clearStatus();
 }
 
-function setBusy(value) {
-  running = value;
-  for (const id of ["go", "chrome"]) {
-    const el = document.getElementById(id);
-    if (el) el.disabled = value;
-  }
-}
-
 function showLog(data) {
   const pre = document.getElementById("log");
+  const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;
   pre.textContent = data.lines.length ? data.lines.join("\n") : "пока пусто";
-  pre.scrollTop = pre.scrollHeight;
+  if (atBottom) pre.scrollTop = pre.scrollHeight;
 }
 
-async function pollActive() {
-  const data = await api("/api/log");
-  showLog(data);
-  if (data.running) {
-    setTimeout(pollActive, 800);
-  } else {
-    setBusy(false);
-    running = false;
-    reload().catch(show);
-    scheduleIdleLog();
+function beginPoll() {
+  const token = ++pollToken;
+  const jobId = activeJobId;
+  const tick = async () => {
+    if (token !== pollToken) return;
+    try {
+      const data = await api("/api/log?job=" + encodeURIComponent(jobId));
+      if (token !== pollToken) return;
+      if (!runState[jobId]) runState[jobId] = {};
+      runState[jobId].running = !!data.running;
+      runState[jobId].exit = data.exit;
+      if (activeJobId === jobId) {
+        showLog(data);
+        updateRunButtons();
+        paintJobBar();
+      }
+      setTimeout(tick, data.running ? 800 : 2500);
+    } catch (_) {
+      if (token === pollToken) setTimeout(tick, 2500);
+    }
+  };
+  tick();
+}
+
+async function switchJob(id) {
+  if (!id || id === activeJobId) return;
+  captureJob();
+  activeJobId = id;
+  applyJob(currentJob());
+  paintSites(lastSites, currentJob());
+  paintJobBar();
+  await save();
+  beginPoll();
+}
+
+async function addJob() {
+  captureJob();
+  const source = currentJob();
+  const job = {
+    id: "j" + Math.random().toString(16).slice(2, 8),
+    name: "Работа " + (jobs.length + 1),
+    posts_folder: "",
+    carousel_folder: "",
+    hashtag_pool: "",
+    schedule_start: "",
+    interval_minutes: 60,
+    limit: 1,
+    sites: (source && source.sites ? source.sites : ["instagram", "tiktok"]).slice(),
+  };
+  jobs.push(job);
+  activeJobId = job.id;
+  applyJob(job);
+  paintSites(lastSites, job);
+  paintJobBar();
+  await save();
+  beginPoll();
+}
+
+async function removeJob() {
+  if (jobs.length < 2) return;
+  if (runState[activeJobId] && runState[activeJobId].running) {
+    show(new Error("сначала останови эту работу"));
+    return;
   }
-}
-
-async function pollIdleOnce() {
-  const data = await api("/api/log");
-  if (!running) showLog(data);
-  if (data.running) {
-    running = true;
-    setBusy(true);
-    pollActive();
-  }
-}
-
-function scheduleIdleLog() {
-  setTimeout(async () => {
-    try { await pollIdleOnce(); } catch (_) {}
-    if (!running) scheduleIdleLog();
-  }, 2500);
+  jobs = jobs.filter((job) => job.id !== activeJobId);
+  activeJobId = jobs[0].id;
+  applyJob(jobs[0]);
+  paintSites(lastSites, jobs[0]);
+  paintJobBar();
+  await save();
+  beginPoll();
 }
 
 function bindClick(id, handler) {
@@ -899,6 +1100,8 @@ async function startChrome() {
 
 bindClick("chrome", () => startChrome());
 bindClick("go", () => launch(false));
+bindClick("stop", () => stopJob());
+bindClick("job-remove", () => removeJob().catch(show));
 async function openFolder(path) {
   await api(path, {});
   clearStatus();
@@ -910,12 +1113,22 @@ bindClick("open-posts", () => openFolder("/api/open/posts").catch(show));
 async function launch(dry) {
   try {
     await save();
-    setBusy(true);
-    await api("/api/run", { dry });
-    running = true;
-    pollActive();
+    await api("/api/run", { dry, job_id: activeJobId });
+    if (!runState[activeJobId]) runState[activeJobId] = {};
+    runState[activeJobId].running = true;
+    updateRunButtons();
+    paintJobBar();
+    beginPoll();
   } catch (err) {
-    setBusy(false);
+    show(err);
+  }
+}
+
+async function stopJob() {
+  try {
+    await api("/api/stop", { job_id: activeJobId });
+    beginPoll();
+  } catch (err) {
     show(err);
   }
 }
@@ -939,16 +1152,14 @@ document.querySelector(".settings").addEventListener("change", (event) => {
   if (event.target.matches('input[name="lm_mode"]')) {
     syncLmPanels();
   }
-  if (event.target.matches("input") && event.target.id !== "schedule_start") {
+  if (event.target.matches("input, textarea") && event.target.id !== "schedule_start") {
     save().catch(show);
   }
 });
 
 initSplit();
 syncLmPanels();
-reload().catch(show);
-pollIdleOnce().catch(show);
-scheduleIdleLog();
+reload().then(beginPoll).catch(show);
 </script>
 </body>
 </html>
