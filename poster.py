@@ -269,6 +269,16 @@ def resolve_instagram_people(text_file, folder, cfg):
         collab_raws.append(sections["Коллабораторы"])
     if sections.get("Теги на рилсе"):
         reel_raws.append(sections["Теги на рилсе"])
+    author_ig = []
+    for line in (sections.get("Автор") or "").splitlines():
+        line = line.strip()
+        labeled = re.match(r"^instagram:\s*(.+)$", line, re.I)
+        if labeled:
+            author_ig.append(labeled.group(1).strip())
+        elif line.startswith("@"):
+            author_ig.append(line)
+    if author_ig:
+        collab_raws.append("\n".join(author_ig))
     return merge_accounts(*collab_raws), merge_accounts(*reel_raws)
 
 

@@ -57,12 +57,25 @@ def _join_sections(parts: list[str]) -> str:
     return "\n\n\n\n".join(part for part in parts if part)
 
 
+def _instagram_usernames(raw: str) -> list[str]:
+    """Ники Instagram из профиля: каждый с @ и на своей строке."""
+    seen = []
+    for tok in re.split(r"[,;\s]+", raw or ""):
+        name = tok.strip().lstrip("@")
+        if not name:
+            continue
+        line = f"@{name}"
+        if line.lower() not in {item.lower() for item in seen}:
+            seen.append(line)
+    return seen
+
+
 def _author_block(author_name: str, handles: dict) -> str:
     lines = []
     if (author_name or "").strip():
         lines.append(author_name.strip())
+    lines.extend(_instagram_usernames(handles.get("instagram_handle") or ""))
     labels = (
-        ("instagram_handle", "instagram"),
         ("tiktok_handle", "tiktok"),
         ("youtube_handle", "youtube"),
         ("vk_handle", "vk"),
