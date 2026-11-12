@@ -973,8 +973,34 @@ def api_admin_set_role(
             admins = conn.execute("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").fetchone()["n"]
             if int(admins) <= 1:
                 raise HTTPException(status_code=400, detail="нельзя снять последнего админа")
-        conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+        if role == "user":
+            conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+        else:
+            conn.execute("UPDATE users SET role = ?, is_superuser = 0 WHERE id = ?", (role, user_id))
     return {"ok": True, "role": role}
+
+
+@app.post("/api/admin/users/{user_id}/superuser")
+def api_admin_set_superuser(
+    user_id: str,
+    body: dict = Body(default_factory=dict),
+    calendar_session: str | None = Cookie(default=None),
+):
+    actor = auth.session_user(calendar_session)
+    if not auth.is_admin(actor):
+        raise HTTPException(status_code=403, detail="только админ")
+    enabled = bool((body or {}).get("enabled"))
+    with db.connect() as conn:
+        target = conn.execute("SELECT id, role FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="пользователь не найден")
+        if target["role"] != "user":
+            raise HTTPException(status_code=400, detail="супер-юзером можно сделать только автора")
+        conn.execute(
+            "UPDATE users SET is_superuser = ? WHERE id = ?",
+            (1 if enabled else 0, user_id),
+        )
+    return {"ok": True, "is_superuser": enabled}
 
 
 @app.post("/api/admin/users/{user_id}/approve")
@@ -1516,9 +1542,9 @@ def api_export_poster(calendar_session: str | None = Cookie(default=None)):
 
 @app.get("/api/admin/export-day-zip")
 def api_export_day_zip(date: str, calendar_session: str | None = Cookie(default=None)):
-    user = auth.user_by_token(calendar_session)
-    if not auth.is_staff(user):
-        raise HTTPException(status_code=403, detail="только админ")
+    user = auth.session_user(calendar_session)
+    if not auth.can_download_day(user):
+        raise HTTPException(status_code=403, detail="нет права скачивать материалы")
     zip_bytes, filename = export_poster.build_day_zip(date)
     return Response(
         content=zip_bytes,

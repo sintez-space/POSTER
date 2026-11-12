@@ -630,6 +630,13 @@
           if (au.role !== "admin") menuItems.push(`<button type="button" data-au-role="admin">Сделать админом</button>`);
           if (au.role !== "observer") menuItems.push(`<button type="button" data-au-role="observer">Наблюдатель</button>`);
           if (au.role !== "user") menuItems.push(`<button type="button" data-au-role="user">Сделать автором</button>`);
+          if (au.role === "user") {
+            menuItems.push(
+              au.is_superuser
+                ? `<button type="button" data-au-super="0">Снять супер-юзера</button>`
+                : `<button type="button" data-au-super="1">Сделать супер-юзером</button>`
+            );
+          }
           menuItems.push(`<button type="button" data-au-del="${au.id}" class="is-danger">Удалить юзера</button>`);
         }
 
@@ -637,7 +644,7 @@
           <div class="author-info-top">
             ${avHtml}
             <div class="author-info-meta">
-              <h3>${au.display_name || au.login}</h3>
+              <h3>${au.display_name || au.login}${au.is_superuser ? ' <span class="badge primary">супер-юзер</span>' : ""}</h3>
               <p>${String(au.email || au.login || "").replace(/^@+/, "")}</p>
               <p>Карточек всего: <strong>${st.total}</strong></p>
             </div>
@@ -711,6 +718,19 @@
           btn.onclick = async () => {
             try {
               await setUserRole(au.id, btn.getAttribute("data-au-role"));
+            } catch (err) {
+              alert(err.message || String(err));
+            }
+          };
+        });
+        card.querySelectorAll("[data-au-super]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              await api(`/api/admin/users/${au.id}/superuser`, {
+                method: "POST",
+                body: JSON.stringify({ enabled: btn.getAttribute("data-au-super") === "1" }),
+              });
+              await renderAuthorsTab();
             } catch (err) {
               alert(err.message || String(err));
             }

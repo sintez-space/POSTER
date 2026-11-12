@@ -15,6 +15,11 @@ def is_admin(user) -> bool:
     return bool(user) and user.get("role") == "admin"
 
 
+def can_download_day(user) -> bool:
+    """Админ, наблюдатель и супер-юзер скачивают материалы дня."""
+    return bool(user) and (user.get("role") in STAFF_ROLES or bool(user.get("is_superuser")))
+
+
 def is_staff(user) -> bool:
     return bool(user) and user.get("role") in STAFF_ROLES
 
@@ -73,6 +78,7 @@ def _brief_from_row(row) -> dict:
         "role": row["role"],
         "display_name": row["display_name"],
         "is_approved": int(row["is_approved"]) if row["is_approved"] is not None else 1,
+        "is_superuser": bool(int(row["is_superuser"] or 0)) if "is_superuser" in row.keys() else False,
     }
 
 
@@ -83,7 +89,7 @@ def session_user(token: str | None):
     with db.connect() as conn:
         row = conn.execute(
             """
-            SELECT u.id, u.login, u.email, u.role, u.display_name, u.is_approved
+            SELECT u.id, u.login, u.email, u.role, u.display_name, u.is_approved, u.is_superuser
             FROM sessions s JOIN users u ON u.id = s.user_id
             WHERE s.token = ?
             """,
@@ -104,7 +110,7 @@ def user_brief(user_id: str):
     with db.connect() as conn:
         row = conn.execute(
             """
-            SELECT id, login, email, role, display_name, is_approved
+            SELECT id, login, email, role, display_name, is_approved, is_superuser
             FROM users WHERE id = ?
             """,
             (uid,),

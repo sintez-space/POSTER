@@ -187,6 +187,10 @@ const WeekPlanner = (() => {
     return !!(me && (me.readonly || me.role === "observer" || me.actor_role === "observer"));
   }
 
+  function canDownloadDays(me) {
+    return !!(me && (isStaff(me) || me.is_superuser));
+  }
+
   function defaultCanDrag(item, me) {
     if (!item || !me || isLookOnly(me)) return false;
     if (isLocked(item)) return false;
@@ -1800,7 +1804,7 @@ const WeekPlanner = (() => {
         return;
       }
       if (feedToolsMount) feedToolsMount.hidden = true;
-      const isAdmin = isStaff(me);
+      const showDayDownload = canDownloadDays(me);
       const days = currentDays();
       const stage = document.createElement("div");
       stage.className = "week-stage";
@@ -1828,7 +1832,7 @@ const WeekPlanner = (() => {
       };
 
       const grid = document.createElement("div");
-      grid.className = "week-grid" + (isAdmin ? " has-day-footers" : "");
+      grid.className = "week-grid" + (showDayDownload ? " has-day-footers" : "");
       const colParts = ["70px"];
       for (let i = 0; i < days.length; i++) {
         if (weekBreakBefore(days, i)) colParts.push("100px");
@@ -1963,7 +1967,7 @@ const WeekPlanner = (() => {
         }
       }
 
-      if (isAdmin) {
+      if (showDayDownload) {
         const footCorner = document.createElement("div");
         footCorner.className = "week-corner-foot";
         grid.appendChild(footCorner);

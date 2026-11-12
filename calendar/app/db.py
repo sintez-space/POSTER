@@ -91,6 +91,7 @@ def init_db():
         _ensure_column(conn, "users", "email", "TEXT")
         _ensure_column(conn, "users", "is_approved", "INTEGER NOT NULL DEFAULT 1")
         _ensure_column(conn, "users", "created_at", "TEXT")
+        _ensure_column(conn, "users", "is_superuser", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(conn, "submissions", "slot_part", "INTEGER NOT NULL DEFAULT 1")
         _ensure_column(conn, "submissions", "media_kind", "TEXT NOT NULL DEFAULT 'video'")
         _ensure_column(conn, "submissions", "carousel_json", "TEXT NOT NULL DEFAULT '[]'")
@@ -153,6 +154,7 @@ def row_to_user_profile(row) -> dict:
         "login": row["login"],
         "email": email_val,
         "role": row["role"],
+        "is_superuser": bool(int(row["is_superuser"] or 0)) if "is_superuser" in keys else False,
         "display_name": row["display_name"],
         "is_approved": bool(is_app),
         "created_at": created_at,
